@@ -24,7 +24,8 @@ Django 5.2 page for customer support: diagnose "the charger doesn't work" from a
 
 ## Things that are easy to get wrong
 
-- `services/ocpp/models.py` is **copied** from fjovell-swish/swish-admin (generated there). Never edit it here.
+- `services/ocpp/models.py` is **generated** by `manage.py regenerate_ocpp_models` (inspectdb on a live api-ocpp
+  schema). Never edit it by hand; change the command (e.g. `MODEL_NAMES`) and regenerate.
 - api-ocpp models are `managed = False` and the router refuses to migrate them. Never write to api-ocpp.
 - Every api-ocpp query picks its tenant with `.using(ocpp_alias(tenant))`; the router's default is only a fallback.
 - Checks in `diagnostics/checks.py` are pure functions over a `Snapshot`: no queries there. Data loading
@@ -38,4 +39,5 @@ uv sync
 uv run python manage.py runserver
 uv run pytest
 uv run pre-commit run --all-files
+uv run python manage.py regenerate_ocpp_models   # needs OCPP_DATABASE_URL to a reachable api-ocpp
 ```

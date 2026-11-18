@@ -51,9 +51,27 @@ production anyway.
 
 ## The api-ocpp models
 
-`services/ocpp/models.py` is copied from
-[swish-admin](https://github.com/fjovell-swish/swish-admin), where it is generated from api-ocpp's
-SQLModel definitions. When api-ocpp's models change, regenerate it there and copy it over.
+`services/ocpp/models.py` is generated with Django's `inspectdb` from a live api-ocpp schema. After
+api-ocpp's schema changes (an Alembic migration), regenerate it against any environment you can
+reach read-only:
+
+```bash
+set -a; . ./.env; set +a                     # OCPP_DATABASE_URL / OCPP_TENANTS of that environment
+uv run python manage.py regenerate_ocpp_models                       # introspects the first tenant
+uv run python manage.py regenerate_ocpp_models --database ocpp_eosgie  # or a given tenant
+git diff services/ocpp/models.py             # review, then run the tests
+```
+
+On top of plain `inspectdb`, the command (`services/ocpp/management/commands/regenerate_ocpp_models.py`):
+
+- keeps the class names the code imports (`charge_points_v16` → `ChargePointV16`, not
+  `ChargePointsV16`). A new table gets `inspectdb`'s default name until it's added to `MODEL_NAMES`;
+- reads Postgres `json` columns with `services.fields.JSONField` (`inspectdb` only maps `jsonb`);
+- types api-ocpp's Postgres enums as `TextField` (`inspectdb` can't map them and would flag them as guesses);
+- skips tables that aren't api-ocpp's (`spatial_ref_sys` from PostGIS, `alembic_version`).
+
+All tenants share the same schema, so introspecting one is enough. `tsvector` search columns stay
+`TextField` guesses; nothing here reads them.
 
 ## Development
 
