@@ -1,0 +1,36 @@
+[project]
+name = "swish-customer-service-diagnostics"
+version = "0.1.0"
+description = "Diagnose \"the charger doesn't work\" from the live central system's data"
+requires-python = ">=3.11"
+dependencies = [
+    "dj-database-url>=3.1.2",
+    "django>=5.2,<5.3",
+    "gunicorn>=27.0.1",
+    "psycopg[binary]>=3.2",
+    "sentry-sdk[django]>=2.75.0",
+    "whitenoise>=6.12.0",
+]
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.7.0",
+    "pytest>=9.2.0",
+    "pytest-django>=4.14.0",
+    "ruff>=0.17.5",
+]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings_test"
+python_files = ["test_*.py"]
+addopts = "-p no:cacheprovider"
+# Tests run without collectstatic, so whitenoise has no STATIC_ROOT to serve.
+filterwarnings = ["ignore:No directory at:UserWarning"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+extend-exclude = ["services/*/models.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B", "UP", "DJ"]
