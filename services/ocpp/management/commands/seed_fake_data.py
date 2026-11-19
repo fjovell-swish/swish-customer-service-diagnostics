@@ -10,9 +10,11 @@ It also creates a local user per way in (password = username): `support` (custom
 diagnostics and cases), `data` (query the data: the tables and deployments) and `admin` (both,
 and the admin's users).
 
-It (re)creates api-ocpp's tables from the generated models in every tenant's local SQLite file,
-so it can run again at any time. It refuses anything but SQLite: this app must never write to a
-real api-ocpp (with OCPP_DATABASE_URL set, the tenants are a real, read-only Postgres).
+It (re)creates api-ocpp's tables from the generated models in every tenant's local SQLite file, so
+it can run again at any time, and gives the local api-gateway and api-gireve SQLite files their
+tables (empty) so the admin can show them; a real one (GATEWAY_/GIREVE_DATABASE_URL) is left alone.
+It refuses anything but SQLite: this app must never write to a real api-ocpp (with
+OCPP_DATABASE_URL set, the tenants are a real, read-only Postgres).
 """
 
 import uuid
@@ -263,7 +265,7 @@ class Command(BaseCommand):
 
         now = timezone.now()
         for position, alias in enumerate(aliases):
-            self.reset_tables(connections[alias])
+            self.reset_tables(connections[alias], "ocpp")
             seeder = Seeder(alias, now)
             # The first tenant gets every scenario; the others show the cross-tenant search.
             if position == 0:
@@ -272,6 +274,11 @@ class Command(BaseCommand):
                 seeder.seed_other_tenant()
             count = ChargePointV16.objects.using(alias).count()
             self.stdout.write(f"{alias}: {count} fake chargers")
+
+        for service in settings.SERVICE_DATABASES:
+            if is_local(connections[service]):
+                self.reset_tables(connections[service], service)
+                self.stdout.write(f"{service}: empty tables")
 
         for username, roles in USERS.items():
             if User.objects.filter(username=username).exists():
@@ -284,8 +291,8 @@ class Command(BaseCommand):
             self.stdout.write(f"Created the user {username} / {username}")
         self.stdout.write(self.style.SUCCESS('Done: search "SEED" on the diagnostics page.'))
 
-    def reset_tables(self, connection: BaseDatabaseWrapper) -> None:
-        models = list(apps.get_app_config("ocpp").get_models())
+    def reset_tables(self, connection: BaseDatabaseWrapper, app_label: str) -> None:
+        models = list(apps.get_app_config(app_label).get_models())
         existing = set(connection.introspection.table_names())
         with connection.schema_editor() as editor:
             for model in models:

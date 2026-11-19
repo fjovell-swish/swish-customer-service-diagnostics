@@ -70,6 +70,20 @@ variable "ocpp_database_url" {
   sensitive   = true
 }
 
+variable "gateway_database_url" {
+  description = "api-gateway's Postgres as a READ-ONLY user; empty: its tables stay out of the admin. From TF_VAR_gateway_database_url"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "gireve_database_url" {
+  description = "api-gireve's Postgres as a READ-ONLY user; empty: its tables stay out of the admin. From TF_VAR_gireve_database_url"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
 variable "ocpp_tenants" {
   description = "api-ocpp's tenant schemas (its TENANT_SCHEMAS)"
   type        = list(string)

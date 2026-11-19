@@ -33,6 +33,8 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "services.ocpp",
+    "services.gateway",
+    "services.gireve",
     "diagnostics",
     "deployments",
 ]
@@ -117,6 +119,23 @@ def ocpp_databases(
             config["TEST"] = {"NAME": f"test_ocpp_{tenant}"}
         databases[f"ocpp_{tenant}"] = config
     return databases
+
+
+# --- api-gateway and api-gireve ----------------------------------------------------------------
+# One database each, no tenants: the alias is the app label. Optional when deployed: a service
+# without a database URL has no alias, and its tables stay out of the admin.
+SERVICE_DATABASES = ("gateway", "gireve")
+
+
+def service_database(url: str, read_only: bool, test_name: str = "") -> dict[str, Any]:
+    config: dict[str, Any] = dict(
+        dj_database_url.parse(url, conn_max_age=60, conn_health_checks=True)
+    )
+    if read_only:
+        config["OPTIONS"] = {"options": "-c default_transaction_read_only=on"}
+    if test_name:
+        config["TEST"] = {"NAME": test_name}
+    return config
 
 
 # --- Deployments page (deployments/, ported from swish-admin) ----------------------------------

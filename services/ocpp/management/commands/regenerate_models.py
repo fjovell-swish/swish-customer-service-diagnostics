@@ -1,0 +1,245 @@
+# Regenerate a service's unmanaged models (services/<service>/models.py) from its live database
+# with Django's inspectdb.
+#
+# On top of plain inspectdb this keeps the class names the code imports (inspectdb would name
+# `charge_points_v16` "ChargePointsV16"), reads Postgres `json` columns as JSON (inspectdb only
+# knows `jsonb`), types Postgres enums as text, skips tables that aren't the service's, and fits
+# api-gateway's and api-gireve's keys to Django (see get_primary_key_columns, normalize_col_name).
+from collections.abc import Iterator
+from pathlib import Path
+from typing import Any
+from unittest import mock
+
+from django.conf import settings
+from django.core.management.base import CommandParser
+from django.core.management.commands import inspectdb
+from django.db import connections
+from django.db.backends.base.base import BaseDatabaseWrapper
+
+SERVICES_PATH = Path(__file__).resolve().parents[3]
+
+# Postgres type OID of `json`, which Django's introspection doesn't map.
+JSON_TYPE_OID = 114
+
+# Tables that live in a service's schema without being the service's: PostGIS metadata and
+# Alembic's version table.
+IGNORED_TABLES = {"spatial_ref_sys", "alembic_version"}
+
+# api-gateway and api-gireve give every row a uuid in this column, and some tables key on it
+# together with another column.
+ROW_UUID_COLUMN = "id_db"
+
+# Django reserves `id` for the primary key; a table whose `id` isn't its key gets this field name.
+RENAMED_ID_FIELD = "record_id"
+
+# The service's name, and the class names the code imports, per service (the app label under
+# services/). A table missing here gets inspectdb's default name.
+SERVICES: dict[str, tuple[str, dict[str, str]]] = {
+    "ocpp": (
+        "api-ocpp",
+        {
+            "Firmware_v201": "FirmwareV201",
+            "authorizations": "Authorization",
+            "charge_point_profile_link": "ChargePointProfileLink",
+            "charge_point_tariff_link": "ChargePointTariffLink",
+            "charge_points_v16": "ChargePointV16",
+            "charge_sessions": "ChargeSession",
+            "chargepoint_v201": "ChargePointV201",
+            "charging_profiles": "ChargingProfile",
+            "configurations_v16": "Configuration",
+            "connector_v201": "ConnectorV201",
+            "connectors_v16": "ConnectorV16",
+            "data_transfer": "DataTransfer",
+            "evse_v201": "EvseV201",
+            "evses": "Evse",
+            "families": "Family",
+            "firmwares_v16": "FirmwareV16",
+            "incidents": "Incident",
+            "jobs": "Job",
+            "local_rfids": "LocalRfid",
+            "locations": "Location",
+            "log_v201": "LogV201",
+            "logs_v16": "LogV16",
+            "maintenances": "Maintenance",
+            "meter_values_v16": "MeterValue",
+            "pending_double_auths": "PendingDoubleAuth",
+            "power_metrics": "PowerMetric",
+            "queue_group_members": "QueueGroupMember",
+            "rejected_rfids": "RejectedRfid",
+            "reservation_queues": "ReservationQueue",
+            "reservations_v16": "Reservation",
+            "rfids": "Rfid",
+            "roaming_margins": "RoamingMargin",
+            "tariffs": "Tariff",
+            "transaction_v201": "TransactionV201",
+            "transactions_v16": "TransactionV16",
+            "users": "User",
+            "vip_configs": "VipConfig",
+        },
+    ),
+    # The services' own SQLModel class names, as swish-admin has them.
+    "gateway": (
+        "api-gateway",
+        {
+            "authorizations": "Authorization",
+            "cdr_errors": "CDRError",
+            "cdrs": "CDR",
+            "clients": "Client",
+            "commands": "Command",
+            "customers": "Customer",
+            "device_tokens": "DeviceToken",
+            "evses": "Evse",
+            "locations": "Location",
+            "power_metrics": "PowerMetric",
+            "push_notification_device_links": "PushNotificationDeviceLink",
+            "push_notifications": "PushNotification",
+            "sessions": "Session",
+            "tariffs": "Tariff",
+            "tokens": "Token",
+            "users": "User",
+        },
+    ),
+    "gireve": (
+        "api-gireve",
+        {
+            "authorizations_cpo": "CPOAuthorization",
+            "authorizations_emsp": "EMSPAuthorization",
+            "cdrs_cpo": "CPOCDR",
+            "cdrs_emsp": "EMSPCDR",
+            "commands_cpo": "CPOCommand",
+            "commands_emsp": "EMSPCommand",
+            "jobs": "Job",
+            "locations_cpo": "CPOLocation",
+            "locations_emsp": "EMSPLocation",
+            "messages": "Message",
+            "sessions_cpo": "CPOSession",
+            "sessions_emsp": "EMSPSession",
+            "tariffs_cpo": "CPOTariff",
+            "tariffs_emsp": "EMSPTariff",
+            "tokens_cpo": "CPOToken",
+            "tokens_emsp": "EMSPToken",
+        },
+    ),
+}
+
+HEADER = '''"""Unmanaged models for the {name} database.
+
+GENERATED by `python manage.py regenerate_models {service}` (Django inspectdb) from a live
+{name} database. Don't edit by hand: rerun the command after {name}'s schema changes.
+"""
+
+from django.db import models
+
+from services import fields'''
+
+
+class Command(inspectdb.Command):
+    help = "Regenerate services/<service>/models.py from the service's live database (read-only)."
+
+    def add_arguments(self, parser: CommandParser) -> None:
+        parser.add_argument("service", choices=tuple(SERVICES), help="The service to regenerate.")
+        parser.add_argument(
+            "--database",
+            choices=tuple(connections),
+            help=(
+                "Alias to introspect (default: the service's; for ocpp the first tenant, since"
+                " all tenants share the schema)."
+            ),
+        )
+        parser.add_argument(
+            "--output",
+            type=Path,
+            help="File to write (default: services/<service>/models.py).",
+        )
+
+    def handle(self, **options: Any) -> None:
+        service = options["service"]
+        self.model_names = SERVICES[service][1]
+        self.enum_type_oids: set[int] | None = None
+        self.current_table = ""
+        self.current_primary_key: list[str] = []
+        database = options["database"] or default_database(service)
+        introspection = connections[database].introspection
+        self.introspected_primary_key_columns = introspection.get_primary_key_columns
+        # inspectdb asks the introspection for primary keys both for the table it writes and for
+        # the targets of its foreign keys, so the adjusted keys have to come from there.
+        with mock.patch.object(
+            introspection, "get_primary_key_columns", self.get_primary_key_columns
+        ):
+            lines = list(
+                self.handle_inspection(
+                    {
+                        "database": database,
+                        "table": [],
+                        "include_partitions": False,
+                        "include_views": False,
+                        "table_name_filter": self.inspect_table,
+                    }
+                )
+            )
+        # Swap inspectdb's clean-up instructions for our header: this output is used as is.
+        first_model_line = lines.index(f"from {self.db_module} import models") + 1
+        body = list(fix_renamed_id_targets(lines[first_model_line:]))
+        header = HEADER.format(name=SERVICES[service][0], service=service)
+        output: Path = options["output"] or SERVICES_PATH / service / "models.py"
+        output.write_text("\n".join([header, *body]) + "\n")
+        model_count = sum(1 for line in body if line.startswith("class "))
+        self.stdout.write(self.style.SUCCESS(f"Wrote {model_count} models to {output}"))
+
+    def inspect_table(self, table_name: str) -> bool:
+        # inspectdb asks this once per table, right before writing it: remember which one it is.
+        self.current_table = table_name
+        return table_name not in IGNORED_TABLES
+
+    def get_primary_key_columns(self, cursor: Any, table_name: str) -> list[str] | None:
+        columns = self.introspected_primary_key_columns(cursor, table_name)
+        # Django's admin can't show models with a composite key, and the row uuid already tells
+        # the rows apart. Link tables (two foreign keys, no row uuid) keep their composite key.
+        if columns and len(columns) > 1 and ROW_UUID_COLUMN in columns:
+            columns = [ROW_UUID_COLUMN]
+        if table_name == self.current_table:
+            self.current_primary_key = columns or []
+        return columns
+
+    def normalize_col_name(
+        self, col_name: str, used_column_names: list[str], is_relation: bool
+    ) -> tuple[str, dict[str, Any], list[str]]:
+        if col_name == "id" and "id" not in self.current_primary_key:
+            return RENAMED_ID_FIELD, {"db_column": "id"}, ["Field renamed: `id` isn't the key."]
+        return super().normalize_col_name(col_name, used_column_names, is_relation)
+
+    def normalize_table_name(self, table_name: str) -> str:
+        return self.model_names.get(table_name) or super().normalize_table_name(table_name)
+
+    def get_field_type(
+        self, connection: BaseDatabaseWrapper, table_name: str, row: Any
+    ) -> tuple[str, dict[str, Any], list[str]]:
+        if row.type_code == JSON_TYPE_OID:
+            return "fields.JSONField", {}, []
+        if row.type_code in self.enum_types(connection):
+            # psycopg returns enum values as their labels, which is all the admin needs.
+            return "TextField", {}, []
+        return super().get_field_type(connection, table_name, row)
+
+    def enum_types(self, connection: BaseDatabaseWrapper) -> set[int]:
+        # Enums are a Postgres type; other backends (the tests' SQLite) have none.
+        if connection.vendor != "postgresql":
+            return set()
+        if self.enum_type_oids is None:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT oid FROM pg_type WHERE typtype = 'e'")
+                self.enum_type_oids = {oid for (oid,) in cursor.fetchall()}
+        return self.enum_type_oids
+
+
+def default_database(service: str) -> str:
+    if service == "ocpp":
+        return f"ocpp_{settings.OCPP_TENANTS[0]}"
+    return service
+
+
+def fix_renamed_id_targets(lines: list[str]) -> Iterator[str]:
+    # inspectdb points a foreign key at the column it references. A `to_field` only appears when
+    # that column isn't the key, so a referenced `id` is always one renamed to record_id.
+    for line in lines:
+        yield line.replace("to_field='id'", f"to_field='{RENAMED_ID_FIELD}'")

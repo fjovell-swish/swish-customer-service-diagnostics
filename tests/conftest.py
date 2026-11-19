@@ -71,6 +71,19 @@ def ocpp_tables(django_db_setup: None, django_db_blocker: Any) -> None:
                     editor.create_model(model)
 
 
+@pytest.fixture(scope="session")
+def service_tables(django_db_setup: None, django_db_blocker: Any) -> None:
+    """Create api-gateway's and api-gireve's tables in their test databases, as create_all would.
+
+    Like ocpp_tables, only for tests marked `django_db(databases="__all__")`.
+    """
+    with django_db_blocker.unblock():
+        for service in settings.SERVICE_DATABASES:
+            with connections[service].schema_editor() as editor:
+                for model in apps.get_app_config(service).get_models():
+                    editor.create_model(model)
+
+
 @pytest.fixture
 def tenants() -> list[str]:
     return list(settings.OCPP_TENANTS)

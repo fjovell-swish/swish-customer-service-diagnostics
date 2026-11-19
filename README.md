@@ -13,6 +13,10 @@ starts a **case**. The app then:
 Cases are saved (history in the admin, with who opened them and the ticket number), so a case can
 be reopened, diagnosed again with the latest data, or closed.
 
+It also replaces swish-admin: people with the `data` role get every table of api-ocpp (per
+tenant), api-gateway and api-gireve in the admin, read-only, and the deployments page (what each
+service runs in staging and production, from GitHub Actions and Kubernetes).
+
 ## The workflow
 
 Questions (`diagnostics/workflow.py`, `QUESTIONS`), each asked only when it can change the answer:
@@ -95,7 +99,9 @@ diagnoses, with timestamps relative to now. Run it again whenever you want fresh
 | `SEED-TENANT-01` | second | offline, faulted, a badge refused by its eMSP, recent maintenance |
 | `SEED-TENANT-02` | second | power held back (`suspended_evse`), a session stopped early |
 
-It only ever writes to local SQLite: with `OCPP_DATABASE_URL` set it refuses to run.
+It only ever writes to local SQLite: with `OCPP_DATABASE_URL` set it refuses to run. It also
+gives the local api-gateway and api-gireve SQLite files their tables, empty, so the admin shows
+them; set `GATEWAY_DATABASE_URL` / `GIREVE_DATABASE_URL` (read-only users) to browse real ones.
 
 To look at real chargers, point it at an environment's api-ocpp through a **read-only** user:
 
@@ -125,10 +131,11 @@ roles follow their groups on every request (losing every role signs them out), a
 stored. Locally the Django login form works too, and roles are the Django groups `data` and
 `support`: `seed_fake_data` creates `support`, `data` and `admin` (superuser: both).
 
-## Read-only on api-ocpp
+## Read-only on the services
 
-The api-ocpp models are unmanaged and never migrated (`config/routers.py`), and in deployed
-environments every api-ocpp connection runs read-only transactions
+The api-ocpp, api-gateway and api-gireve models are unmanaged and never migrated
+(`config/routers.py`), and in deployed environments every connection to them runs read-only
+transactions
 (`default_transaction_read_only=on`): a write fails with "cannot execute UPDATE in a read-only
 transaction". Use a database user with `SELECT` only anyway.
 
@@ -138,29 +145,37 @@ transaction". Use a database user with `SELECT` only anyway.
 `ci.py` (GitHub Actions' Postgres service), `production.py` (default for wsgi; every value from the
 environment, required ones listed at the top of the file).
 
-## The api-ocpp models
+## The services' models
 
-`services/ocpp/models.py` is generated with Django's `inspectdb` from a live api-ocpp schema. After
-api-ocpp's schema changes (an Alembic migration), regenerate it against any environment you can
-reach read-only:
+`services/<service>/models.py` (`ocpp`, `gateway`, `gireve`) are generated with Django's
+`inspectdb` from the service's live database. After a service's schema changes, regenerate its
+models against any environment you can reach read-only:
 
 ```bash
 export OCPP_DATABASE_URL=postgres://readonly:...@host:5432/ocpp OCPP_TENANTS=public,eosgie
-python manage.py regenerate_ocpp_models                          # introspects the first tenant
-python manage.py regenerate_ocpp_models --database ocpp_eosgie   # or a given tenant
-git diff services/ocpp/models.py                                 # review, then run the tests
+python manage.py regenerate_models ocpp                          # introspects the first tenant
+python manage.py regenerate_models ocpp --database ocpp_eosgie   # or a given tenant
+GATEWAY_DATABASE_URL=postgres://readonly:...@host:5432/gateway python manage.py regenerate_models gateway
+GIREVE_DATABASE_URL=postgres://readonly:...@host:5432/gireve python manage.py regenerate_models gireve
+git diff services/                                               # review, then run the tests
 ```
 
-On top of plain `inspectdb`, the command (`services/ocpp/management/commands/regenerate_ocpp_models.py`):
+On top of plain `inspectdb`, the command (`services/ocpp/management/commands/regenerate_models.py`):
 
 - keeps the class names the code imports (`charge_points_v16` → `ChargePointV16`, not
-  `ChargePointsV16`). A new table gets `inspectdb`'s default name until it's added to `MODEL_NAMES`;
+  `ChargePointsV16`; api-gateway's and api-gireve's are their own SQLModel names, as in
+  swish-admin). A new table gets `inspectdb`'s default name until it's added to `SERVICES`;
 - reads Postgres `json` columns with `services.fields.JSONField` (`inspectdb` only maps `jsonb`);
-- types api-ocpp's Postgres enums as `TextField` (`inspectdb` can't map them and would flag them as guesses);
-- skips tables that aren't api-ocpp's (`spatial_ref_sys` from PostGIS, `alembic_version`).
+- types Postgres enums as `TextField` (`inspectdb` can't map them and would flag them as guesses);
+- skips tables that aren't the service's (`spatial_ref_sys` from PostGIS, `alembic_version`);
+- fits api-gateway's and api-gireve's keys to Django: a composite key that includes the row uuid
+  `id_db` (e.g. `(id, id_db)`) becomes `id_db` alone, since the admin can't show composite keys;
+  an `id` column that isn't the key becomes `record_id` (`db_column="id"`; Django reserves `id`
+  for the key), and foreign keys to it use `to_field="record_id"`. Link tables (two foreign keys)
+  keep their composite key and stay out of the admin.
 
-All tenants share the same schema, so introspecting one is enough. `tsvector` search columns stay
-`TextField` guesses; nothing here reads them.
+All api-ocpp tenants share the same schema, so introspecting one is enough. `tsvector` search
+columns stay `TextField` guesses; nothing here reads them.
 
 ## Development
 
@@ -211,5 +226,7 @@ git tag v1.0.0 && git push origin v1.0.0     # staging, then production after ap
 | `manage.sh <env> <command>` | any `manage.py` command in the running container |
 | `logs.sh <env>` | follow the app's logs |
 
-The app needs network access to the environment's api-ocpp Postgres: allow the app's outbound IPs
-(`terraform output outbound_ip_addresses`) in its firewall.
+The app needs network access to the environment's api-ocpp Postgres (and api-gateway's and
+api-gireve's, when configured): allow the app's outbound IPs (`terraform output
+outbound_ip_addresses`) in their firewalls. The secrets each one needs are listed in
+`deploy/terraform/README.md`.

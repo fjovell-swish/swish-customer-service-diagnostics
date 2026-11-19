@@ -40,6 +40,8 @@ locals {
     "proxy-secret"      = { env = "AUTH_PROXY_SECRET", value = random_password.proxy_secret.result }
     "database-url"      = { env = "DATABASE_URL", value = local.database_url }
     "ocpp-database-url" = { env = "OCPP_DATABASE_URL", value = var.ocpp_database_url }
+    "gateway-db-url"    = { env = "GATEWAY_DATABASE_URL", value = var.gateway_database_url }
+    "gireve-db-url"     = { env = "GIREVE_DATABASE_URL", value = var.gireve_database_url }
     "sentry-dsn"        = { env = "SENTRY_DSN", value = var.sentry_dsn }
     "github-token"      = { env = "GITHUB_TOKEN", value = var.github_token }
   }
@@ -47,8 +49,9 @@ locals {
 
   # The deployments page reads each cluster's kubeconfig from a file: the secrets volume mounts
   # every secret at /secrets/<name>; KUBECONFIG_<CLUSTER> points at that cluster's.
-  # Cluster names aren't secret: only the kubeconfigs stay sensitive (for_each refuses sensitive keys).
-  kubeconfig_clusters = nonsensitive(keys(var.kubeconfigs))
+  # Cluster names aren't secret: only the kubeconfigs stay sensitive (for_each refuses sensitive
+  # keys). The deploy workflow passes every cluster; one whose secret is unset comes in empty.
+  kubeconfig_clusters = nonsensitive([for cluster, kubeconfig in var.kubeconfigs : cluster if kubeconfig != ""])
   kubeconfig_secrets  = { for cluster in local.kubeconfig_clusters : "kubeconfig-${cluster}" => var.kubeconfigs[cluster] }
   kubeconfig_env      = { for cluster in local.kubeconfig_clusters : "KUBECONFIG_${upper(replace(cluster, "-", "_"))}" => "/secrets/kubeconfig-${cluster}" }
 

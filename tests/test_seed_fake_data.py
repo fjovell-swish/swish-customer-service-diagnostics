@@ -19,6 +19,8 @@ from diagnostics.checks import run_checks
 from diagnostics.snapshot import collect
 from diagnostics.snapshot import find_chargers
 from diagnostics.snapshot import ocpp_alias
+from services.gateway.models import Evse
+from services.gireve.models import CPOToken
 from services.ocpp.management.commands import seed_fake_data
 from services.ocpp.models import ChargePointV16
 
@@ -35,7 +37,7 @@ def local_tenants(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     monkeypatch.setattr(seed_fake_data, "is_local", lambda connection: True)
     yield
     for tenant in settings.OCPP_TENANTS:
-        seed_fake_data.Command().reset_tables(connections[ocpp_alias(tenant)])
+        seed_fake_data.Command().reset_tables(connections[ocpp_alias(tenant)], "ocpp")
 
 
 @pytest.fixture
@@ -116,6 +118,26 @@ def test_seed_fake_data_refuses_a_real_api_ocpp(
         call_command("seed_fake_data", stdout=StringIO())
 
     assert ChargePointV16.objects.using(ocpp_alias(tenants[0])).count() == 0
+
+
+def test_seed_fake_data_gives_local_gateway_and_gireve_their_tables(seed: str) -> None:
+    assert Evse.objects.count() == CPOToken.objects.count() == 0
+    assert "gateway: empty tables" in seed
+    assert "gireve: empty tables" in seed
+
+
+def test_seed_fake_data_leaves_a_real_gateway_alone(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        seed_fake_data, "is_local", lambda connection: connection.alias != "gateway"
+    )
+    out = StringIO()
+
+    call_command("seed_fake_data", stdout=out)
+
+    assert "gateway:" not in out.getvalue()
+    assert "gireve: empty tables" in out.getvalue()
+    for tenant in settings.OCPP_TENANTS:
+        seed_fake_data.Command().reset_tables(connections[ocpp_alias(tenant)], "ocpp")
 
 
 @pytest.mark.parametrize(("vendor", "local"), [("sqlite", True), ("postgresql", False)])

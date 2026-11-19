@@ -9,3 +9,5 @@ support_groups = ["swish-support"]
 # export TF_VAR_github_token=...    # the deployments page's GitHub access
 # export TF_VAR_kubeconfigs='{ staging = "...", production = "..." }'
 # export TF_VAR_ocpp_database_url=postgres://readonly:...@host:5432/ocpp
+# export TF_VAR_gateway_database_url=postgres://readonly:...@host:5432/gateway   # optional
+# export TF_VAR_gireve_database_url=postgres://readonly:...@host:5432/gireve     # optional

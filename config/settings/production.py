@@ -5,8 +5,10 @@ environment. wsgi.py defaults to this module.
 Required: SECRET_KEY, DJANGO_ALLOWED_HOSTS, AUTH_PROXY_SECRET, DATABASE_URL (this app's own
 Postgres: cases and users), OCPP_DATABASE_URL (a read-only user on api-ocpp's database),
 OCPP_TENANTS (api-ocpp's TENANT_SCHEMAS, comma-separated).
-Optional: DJANGO_CSRF_TRUSTED_ORIGINS, AUTH_PROXY_* header names and groups (settings/base.py),
-SENTRY_DSN, SENTRY_TRACES_SAMPLE_RATE, ENVIRONMENT, IMAGE_TAG, LOG_LEVEL, LOG_FORMAT.
+Optional: GATEWAY_DATABASE_URL and GIREVE_DATABASE_URL (read-only users on api-gateway's and
+api-gireve's databases; a service left out has no tables in the admin),
+DJANGO_CSRF_TRUSTED_ORIGINS, AUTH_PROXY_* header names and groups (settings/base.py), SENTRY_DSN,
+SENTRY_TRACES_SAMPLE_RATE, ENVIRONMENT, IMAGE_TAG, LOG_LEVEL, LOG_FORMAT.
 """
 
 import os
@@ -16,8 +18,10 @@ import dj_database_url
 
 from config.sentry import init_sentry
 from config.settings.base import AUTH_PROXY
+from config.settings.base import SERVICE_DATABASES
 from config.settings.base import *  # noqa: F401,F403
 from config.settings.base import ocpp_databases
+from config.settings.base import service_database
 
 DEBUG = False
 SECRET_KEY = os.environ["SECRET_KEY"]
@@ -48,6 +52,11 @@ DATABASES: dict[str, dict[str, Any]] = {
     # Read-only twice over: the database user should only have SELECT, and every transaction is
     # read-only, so nothing in this app can write to api-ocpp by accident.
     **ocpp_databases(os.environ["OCPP_DATABASE_URL"], OCPP_TENANTS, read_only=True),
+    **{
+        service: service_database(os.environ[f"{service.upper()}_DATABASE_URL"], read_only=True)
+        for service in SERVICE_DATABASES
+        if os.environ.get(f"{service.upper()}_DATABASE_URL")
+    },
 }
 
 init_sentry()

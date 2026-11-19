@@ -83,7 +83,7 @@ filterwarnings = ["ignore:No directory at:UserWarning"]
 plugins = ["covdefaults"]
 source = ["config", "deployments", "diagnostics", "services", "tests"]
 # Everything is measured except the generated api-ocpp models; covdefaults sets fail_under = 100.
-omit = ["services/ocpp/models.py"]
+omit = ["services/*/models.py"]
 
 [tool.coverage.html]
 directory = "artifacts/htmlcov/"

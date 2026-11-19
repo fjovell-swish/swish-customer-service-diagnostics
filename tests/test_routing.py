@@ -1,9 +1,12 @@
 import pytest
+from django.db.models import Model
 from django.test import Client
 from django.urls import reverse
 
 from config.routers import ServiceRouter
 from diagnostics.models import Case
+from services.gateway.models import Evse
+from services.gireve.models import CPOToken
 from services.ocpp.models import ChargePointV16
 from services.ocpp.models import ConnectorV16
 
@@ -12,9 +15,15 @@ def test_router_reads_ocpp_from_first_tenant() -> None:
     assert ServiceRouter().db_for_read(ChargePointV16) == "ocpp_public"
 
 
-@pytest.mark.parametrize("db_alias", ["default", "ocpp_public"])
-def test_router_never_migrates_ocpp(db_alias: str) -> None:
-    assert ServiceRouter().allow_migrate(db_alias, "ocpp") is False
+@pytest.mark.parametrize("model", [Evse, CPOToken], ids=lambda model: model._meta.app_label)
+def test_router_reads_single_database_services_from_their_alias(model: type[Model]) -> None:
+    assert ServiceRouter().db_for_read(model) == model._meta.app_label
+
+
+@pytest.mark.parametrize("db_alias", ["default", "ocpp_public", "gateway", "gireve"])
+@pytest.mark.parametrize("app_label", ["ocpp", "gateway", "gireve"])
+def test_router_never_migrates_the_services(db_alias: str, app_label: str) -> None:
+    assert ServiceRouter().allow_migrate(db_alias, app_label) is False
 
 
 def test_router_migrates_own_tables_on_default_only() -> None:

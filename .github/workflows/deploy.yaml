@@ -116,7 +116,15 @@ jobs:
           ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
           TF_VAR_ocpp_database_url: ${{ secrets.OCPP_DATABASE_URL }}
+          TF_VAR_gateway_database_url: ${{ secrets.GATEWAY_DATABASE_URL }}
+          TF_VAR_gireve_database_url: ${{ secrets.GIREVE_DATABASE_URL }}
           TF_VAR_sentry_dsn: ${{ secrets.SENTRY_DSN }}
+          # The deployments page. Secrets can't start with GITHUB_; an unset kubeconfig is dropped.
+          TF_VAR_github_token: ${{ secrets.DEPLOYMENTS_GITHUB_TOKEN }}
+          TF_VAR_kubeconfigs: >-
+            {"staging": ${{ toJSON(secrets.KUBECONFIG_STAGING) }},
+            "production": ${{ toJSON(secrets.KUBECONFIG_PRODUCTION) }},
+            "csms-production": ${{ toJSON(secrets.KUBECONFIG_CSMS_PRODUCTION) }}}
         run: |
           set -o pipefail
           deploy/scripts/deploy.sh staging --tag "${{ needs.build.outputs.tag || inputs.tag }}" 2>&1 | tee deploy.log
@@ -163,7 +171,15 @@ jobs:
           ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
           TF_VAR_ocpp_database_url: ${{ secrets.OCPP_DATABASE_URL }}
+          TF_VAR_gateway_database_url: ${{ secrets.GATEWAY_DATABASE_URL }}
+          TF_VAR_gireve_database_url: ${{ secrets.GIREVE_DATABASE_URL }}
           TF_VAR_sentry_dsn: ${{ secrets.SENTRY_DSN }}
+          # The deployments page. Secrets can't start with GITHUB_; an unset kubeconfig is dropped.
+          TF_VAR_github_token: ${{ secrets.DEPLOYMENTS_GITHUB_TOKEN }}
+          TF_VAR_kubeconfigs: >-
+            {"staging": ${{ toJSON(secrets.KUBECONFIG_STAGING) }},
+            "production": ${{ toJSON(secrets.KUBECONFIG_PRODUCTION) }},
+            "csms-production": ${{ toJSON(secrets.KUBECONFIG_CSMS_PRODUCTION) }}}
           TAG: ${{ needs.build.outputs.tag || inputs.tag }}
         run: |
           set -o pipefail

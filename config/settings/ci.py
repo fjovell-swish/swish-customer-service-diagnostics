@@ -4,10 +4,12 @@ GitHub Actions: local settings with DEBUG off and the Postgres service the CI wo
 DJANGO_SETTINGS_MODULE=config.settings.ci in the workflow. Locally, tests run on SQLite
 (config.settings.local).
 
-The api-ocpp aliases are writable here: tests create api-ocpp's tables in each tenant's test
-database.
+The service aliases are writable here: tests create api-ocpp's tables in each tenant's test
+database, and api-gateway's and api-gireve's in theirs.
 """
 
+from config.settings.base import SERVICE_DATABASES
+from config.settings.base import service_database
 from config.settings.local import OCPP_TENANTS
 from config.settings.local import *  # noqa: F401,F403
 from config.settings.local import ocpp_databases
@@ -27,4 +29,8 @@ DATABASES = {
         "PORT": "5432",
     },
     **ocpp_databases(POSTGRES_URL, OCPP_TENANTS, read_only=False, test_names=True),
+    **{
+        service: service_database(POSTGRES_URL, read_only=False, test_name=f"test_{service}")
+        for service in SERVICE_DATABASES
+    },
 }

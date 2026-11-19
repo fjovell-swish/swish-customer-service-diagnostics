@@ -164,9 +164,16 @@ def default_options(model: type[models.Model]) -> dict[str, Any]:
 
 
 def register_app_models(
-    app_label: str, overrides: dict[str, dict[str, Any]] | None = None
+    app_label: str,
+    overrides: dict[str, dict[str, Any]] | None = None,
+    database_configured: bool = True,
 ) -> list[type[models.Model]]:
-    """Register all models of `app_label`; `overrides` maps a model name to admin options."""
+    """Register all models of `app_label`; `overrides` maps a model name to admin options.
+
+    A service whose database isn't configured registers nothing: its pages could only fail.
+    """
+    if not database_configured:
+        return []
     overrides = overrides or {}
     registered = []
     for model in apps.get_app_config(app_label).get_models():

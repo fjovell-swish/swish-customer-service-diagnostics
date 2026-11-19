@@ -89,6 +89,22 @@ def test_production_settings_api_ocpp_is_read_only_per_tenant(
     )
 
 
+def test_production_settings_gateway_and_gireve_are_optional_and_read_only(
+    fresh_import: Callable[..., ModuleType],
+) -> None:
+    prod = fresh_import(
+        "config.settings.production",
+        drop=("GIREVE_DATABASE_URL",),
+        GATEWAY_DATABASE_URL="postgres://readonly:pw@gateway.internal:5432/gateway",
+    )
+
+    assert prod.DATABASES["gateway"]["HOST"] == "gateway.internal"
+    assert prod.DATABASES["gateway"]["OPTIONS"] == {
+        "options": "-c default_transaction_read_only=on"
+    }
+    assert "gireve" not in prod.DATABASES
+
+
 @pytest.mark.parametrize(
     "missing",
     [
@@ -115,6 +131,7 @@ def test_ci_settings_give_each_tenant_its_test_database(
     assert ci.DATABASES["default"]["ENGINE"] == "django.db.backends.postgresql"
     assert ci.DATABASES["ocpp_eosgie"]["TEST"] == {"NAME": "test_ocpp_eosgie"}
     assert ci.DATABASES["ocpp_eosgie"]["OPTIONS"] == {"options": "-c search_path=eosgie,public"}
+    assert ci.DATABASES["gireve"]["TEST"] == {"NAME": "test_gireve"}
 
 
 def test_local_settings_use_a_real_api_ocpp_when_given_one(
@@ -126,6 +143,20 @@ def test_local_settings_use_a_real_api_ocpp_when_given_one(
     assert (
         "default_transaction_read_only=on" in local.DATABASES["ocpp_public"]["OPTIONS"]["options"]
     )
+
+
+def test_local_settings_gateway_and_gireve_real_or_sqlite(
+    fresh_import: Callable[..., ModuleType],
+) -> None:
+    local = fresh_import(
+        "config.settings.local",
+        drop=("GIREVE_DATABASE_URL",),
+        GATEWAY_DATABASE_URL="postgres://readonly:pw@gateway.internal:5432/gateway",
+    )
+
+    assert local.DATABASES["gateway"]["HOST"] == "gateway.internal"
+    assert "default_transaction_read_only=on" in local.DATABASES["gateway"]["OPTIONS"]["options"]
+    assert local.DATABASES["gireve"]["ENGINE"] == "django.db.backends.sqlite3"
 
 
 def test_wsgi_exposes_an_application() -> None:

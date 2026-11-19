@@ -9,9 +9,11 @@ Without it each tenant is an empty local SQLite file; tests create api-ocpp's ta
 import os
 
 from config.settings.base import BASE_DIR
+from config.settings.base import SERVICE_DATABASES
 from config.settings.base import *  # noqa: F401,F403
 from config.settings.base import env_list
 from config.settings.base import ocpp_databases
+from config.settings.base import service_database
 
 DEBUG = True
 SECRET_KEY = "local-dev-only-not-a-secret"
@@ -49,5 +51,16 @@ else:
         DATABASES[f"ocpp_{tenant}"] = {
             "ENGINE": "django.db.backends.sqlite3",
             "NAME": BASE_DIR / f"local_ocpp_{tenant}.sqlite3",
+            "TEST": {"NAME": ":memory:"},
+        }
+
+for service in SERVICE_DATABASES:
+    url = os.environ.get(f"{service.upper()}_DATABASE_URL")
+    if url:
+        DATABASES[service] = service_database(url, read_only=True)
+    else:
+        DATABASES[service] = {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / f"local_{service}.sqlite3",
             "TEST": {"NAME": ":memory:"},
         }
