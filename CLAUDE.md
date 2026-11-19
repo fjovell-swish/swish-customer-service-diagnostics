@@ -23,8 +23,8 @@ finds the charger (identity, name or serial, across every api-ocpp tenant) and s
 app asks only the questions that matter, then writes a diagnosis (likely cause, confidence, next
 steps, customer reply, ticket summary). See README.md for the questions and rules.
 
-It also replaces the former swish-admin: the `data` role browses every table of api-ocpp, api-
-gateway and api-gireve in the admin (read-only) and sees the deployments page.
+It also replaces the former swish-admin: the `data` role browses every table of api-ocpp,
+api-gateway and api-gireve in the admin (read-only) and sees the deployments page.
 
 Python 3.15, Django 6.1, pip-tools lockfiles. It reads **api-ocpp's database, read-only**, one
 connection alias per tenant schema (`ocpp_<tenant>`), and **api-gateway's and api-gireve's**, one
