@@ -1,0 +1,108 @@
+{% extends "diagnostics/base.html" %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs"><a href="{% url 'start' %}">Charger diagnostics</a> &rsaquo; Case #{{ case.pk }}</div>
+{% endblock breadcrumbs %}
+
+{% block content %}
+{% with cp=snapshot.charge_point %}
+<p>
+  <span class="badge badge-{{ case.status }}">{{ case.get_status_display }}</span>
+  <strong>{{ cp.identity }}</strong>{% if cp.charger_name %} &middot; {{ cp.charger_name }}{% endif %}
+  &middot; {{ cp.customer_name|default:"no customer" }} &middot; {{ case.tenant }}
+  {% if case.ticket %}&middot; ticket {{ case.ticket }}{% endif %}
+  <span class="muted">&middot; opened by {{ case.created_by|default:"?" }} {{ case.created_at|timesince }} ago</span>
+</p>
+
+<div class="columns">
+  <div>
+    {% if question %}
+    <form method="post" class="module question">
+      {% csrf_token %}
+      <p class="muted">Question {{ asked|length|add:1 }}</p>
+      {{ form.as_p }}
+      <div class="actions-row">
+        <button type="submit" name="action" value="answer" class="default">Next</button>
+        {% if asked %}<button type="submit" name="action" value="back" formnovalidate>Back</button>{% endif %}
+      </div>
+    </form>
+    {% elif case.likely_cause %}
+    <div class="callout callout-{{ case.confidence }}">
+      <span class="badge badge-{{ case.confidence }}">{{ case.confidence }} confidence</span>
+      <span class="muted">diagnosed {{ case.diagnosed_at|timesince }} ago</span>
+      <h2 style="margin: 8px 0 0">{{ case.likely_cause }}</h2>
+    </div>
+
+    <div class="module" style="padding: 12px 16px">
+      <h3>Reply to the customer</h3>
+      <div class="reply" id="customer-reply">{{ case.customer_reply }}</div>
+      <button type="button" class="button copy" data-target="customer-reply">Copy</button>
+    </div>
+
+    <div class="module" style="padding: 12px 16px">
+      <h3>Summary for the ticket</h3>
+      <div class="reply" id="ticket-summary">{{ case.summary }}</div>
+      <button type="button" class="button copy" data-target="ticket-summary">Copy</button>
+    </div>
+    {% endif %}
+
+    <form method="post" class="actions-row">
+      {% csrf_token %}
+      {% if not question %}<button type="submit" name="action" value="rediagnose">Diagnose again with the latest data</button>{% endif %}
+      {% if asked %}<button type="submit" name="action" value="restart">Start the questions over</button>{% endif %}
+      {% if case.status != "closed" %}<button type="submit" name="action" value="close">Close the case</button>{% endif %}
+      <a href="{% url 'admin:diagnostics_case_change' case.pk %}">Edit in the admin</a>
+    </form>
+
+    {% if asked %}
+    <div class="module">
+      <table style="width: 100%">
+        <caption>Answers</caption>
+        <tbody>
+        {% for question_text, answer in asked %}
+          <tr><th>{{ question_text }}</th><td>{{ answer }}</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  </div>
+
+  <div>
+    <div class="callout callout-{{ verdict.label }}">
+      <span class="badge badge-{{ verdict.label }}">{{ verdict.label }}</span> {{ overall }}
+      <div class="muted">Live data, checked {{ checked_at|date:"H:i:s" }}</div>
+    </div>
+
+    <div class="module">
+      <table class="facts" style="width: 100%">
+        <caption>Charger</caption>
+        <tr><th>Connection</th><td>{% if cp.connected %}connected{% else %}<strong>offline</strong>{% endif %}, last heartbeat {% if cp.last_heartbeat %}{{ cp.last_heartbeat|timesince }} ago{% else %}never{% endif %}</td></tr>
+        <tr><th>Status / availability</th><td>{{ cp.status }} / {{ cp.availability }}{% if not cp.is_active %} &middot; <strong>not activated</strong>{% endif %}</td></tr>
+        <tr><th>Hardware</th><td>{{ cp.vendor|default:"?" }} {{ cp.model|default:"" }}, firmware {{ cp.firmware_version|default:"?" }}</td></tr>
+        <tr><th>Address</th><td>{{ cp.address|default:"" }} {{ cp.postal_code|default:"" }} {{ cp.city|default:"" }}</td></tr>
+        {% for each in snapshot.connectors %}
+        <tr><th>Connector {{ each.index }}{% if each == connector %} (customer's){% endif %}</th><td>{{ each.status }}{% if each.error_code and each.error_code != "no_error" %}, {{ each.error_code }}{% endif %}, {{ each.availability }}</td></tr>
+        {% endfor %}
+      </table>
+    </div>
+
+    <div class="module">
+      <table style="width: 100%">
+        <caption>Findings</caption>
+        <tbody>
+        {% for finding in findings %}
+          <tr>
+            <td><span class="badge badge-{{ finding.severity.label }}">{{ finding.severity.label }}</span></td>
+            <td><strong>{{ finding.title }}</strong><br><span class="muted">{{ finding.evidence }}</span></td>
+          </tr>
+        {% empty %}
+          <tr><td class="muted">Nothing unusual</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endwith %}
+{% endblock content %}

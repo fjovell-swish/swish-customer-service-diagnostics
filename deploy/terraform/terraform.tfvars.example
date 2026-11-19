@@ -6,4 +6,3 @@ image_tag   = "latest"
 ocpp_tenants   = ["public"]
 allowed_groups = ["swish-support"]
 # export TF_VAR_ocpp_database_url=postgres://readonly:...@host:5432/ocpp
-# infrastructure_subnet_id = "/subscriptions/.../subnets/snet-diagnostics"

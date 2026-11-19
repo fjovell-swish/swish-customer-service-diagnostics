@@ -73,9 +73,11 @@ def find_chargers(query: str) -> list[ChargerMatch]:
     return exact_matches or matches[:MAX_MATCHES]
 
 
-def collect(tenant: str, charge_point: ChargePointV16, now: datetime) -> Snapshot:
+def collect(
+    tenant: str, charge_point: ChargePointV16, now: datetime, lookback: timedelta = LOOKBACK
+) -> Snapshot:
     alias = ocpp_alias(tenant)
-    since = now - LOOKBACK
+    since = now - lookback
     connectors = list(
         ConnectorV16.objects.using(alias).filter(charge_point_id=charge_point.id).order_by("index")
     )

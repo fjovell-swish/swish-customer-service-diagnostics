@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Full release: build+push (unless --tag given), terraform apply, health check.
+# Full release: build+push (unless --tag given), migrate on the new image, roll the app, health check.
 #   deploy/scripts/deploy.sh dev                       # build from HEAD and deploy
 #   deploy/scripts/deploy.sh production --tag v1.4.0   # deploy an already-built tag
 #   deploy/scripts/deploy.sh dev --plan                # terraform plan only
@@ -20,8 +20,12 @@ if [[ $PLAN -eq 1 ]]; then
   exit 0
 fi
 
-# No migration step: the container migrates its own SQLite tables at start-up
-# (deploy/entrypoints/web.sh) and never touches api-ocpp's schema.
+# Migrations first, on the NEW image, so the new code never runs against an old schema. They only
+# touch this app's database: api-ocpp's models are never migrated (config/routers.py).
+log "updating migrate job to $TAG"
+tf apply -auto-approve -var-file="$TFVARS" -var "image_tag=$TAG" -target=azurerm_container_app_job.migrate
+"$ROOT/deploy/scripts/migrate.sh" "$ENV"
+
 log "rolling web to $TAG"
 tf apply -auto-approve -var-file="$TFVARS" -var "image_tag=$TAG"
 

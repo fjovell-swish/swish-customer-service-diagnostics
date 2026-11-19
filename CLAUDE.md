@@ -17,14 +17,14 @@ Postgres tests at 100% coverage when you touched anything that queries the datab
 
 ## Overview
 
-A Django page for customer support: when a customer says "the charger doesn't work", support
-searches a charger (identity, name or serial, across every api-ocpp tenant) and gets a verdict,
-findings worst first with the action to take, and a reply to send the customer. See README.md for
-the checks.
+A guided workflow for customer support: when a customer says "the charger doesn't work", the rep
+finds the charger (identity, name or serial, across every api-ocpp tenant) and starts a case; the
+app asks only the questions that matter, then writes a diagnosis (likely cause, confidence, next
+steps, customer reply, ticket summary). See README.md for the questions and rules.
 
 Python 3.15, Django 6.1, pip-tools lockfiles. It reads **api-ocpp's database, read-only**, one
-connection alias per tenant schema (`ocpp_<tenant>`). It has no database of its own worth the
-name: its users live in an SQLite file in the container, created by the auth proxy on first visit.
+connection alias per tenant schema (`ocpp_<tenant>`), and keeps its own data (cases, users) in its
+own Postgres (`default`; SQLite locally).
 
 ## Layout
 
@@ -34,7 +34,16 @@ name: its users live in an SQLite file in the container, created by the auth pro
 - `diagnostics/checks.py`: the checks, **pure functions** over a `Snapshot` returning `Finding`s
   (severity, title, evidence, action, customer reply). Thresholds are named constants at the top.
   A new check is a function added to `CHECKS` plus its tests; no queries here.
-- `diagnostics/views.py` + `templates/diagnostics/diagnose.html`: the page, on the admin's look.
+- `diagnostics/workflow.py`: the workflow, **pure functions** over a `Situation` (snapshot,
+  findings, answers): `QUESTIONS` (each returns a `Question` only when it's relevant),
+  `next_question()`, `RULES` (first match wins) and `diagnose()`, which also writes the ticket
+  summary. A new question: a function in `QUESTIONS`, its key in `QUESTION_ORDER`, and the rules
+  that use it; a new rule: a function in `RULES` at the right place. Tests for each.
+- `diagnostics/models.py`: `Case` (the charger, the answers as JSON, the diagnosis as written).
+  `diagnostics/admin.py`: the case history. `diagnostics/forms.py`: start and answer forms.
+- `diagnostics/views.py` + `templates/diagnostics/`: `/` (find a charger, start a case, latest
+  cases) and `/cases/<id>/` (next question or the diagnosis; Back, start over, diagnose again,
+  close), on the admin's look.
 - `services/ocpp/models.py`: api-ocpp's tables, **generated** (see below).
 - `services/ocpp/management/commands/regenerate_ocpp_models.py`: the generator (inspectdb).
 - `config/settings/`: `base` (shared), `local` (default for `manage.py` and pytest; SQLite, no
@@ -43,7 +52,8 @@ name: its users live in an SQLite file in the container, created by the auth pro
 - `config/auth_proxy.py`: sign-in in deployed environments (below). `config/routers.py`: keeps
   api-ocpp models off `default` and never migrates them.
 - `deploy/`: the image (`web.Dockerfile`, `entrypoints/web.sh`), Terraform for Azure Container
-  Apps, and the scripts (`deploy.sh`, `promote.sh`, `rollback.sh`, `health.sh`, `manage.sh`, ...).
+  Apps (VNet, app, migrate job, private Postgres), and the scripts (`deploy.sh`, `migrate.sh`,
+  `promote.sh`, `rollback.sh`, `health.sh`, `manage.sh`, ...).
 
 ## Things that are easy to get wrong
 
@@ -64,6 +74,10 @@ name: its users live in an SQLite file in the container, created by the auth pro
 - Tests that touch api-ocpp need `pytest.mark.django_db(databases="__all__")` and the `ocpp_tables`
   fixture (or `save`, which uses it): pytest-django only sets up the tenants' test databases when
   such a test is collected. Tests that need Postgres are marked `postgres` and skip on SQLite.
+- Migrations run in the migrate job before each rollout (`deploy.sh`), never at container start:
+  keep it that way, two replicas starting together would race.
+- Answers are stored by question key in `Case.answers`; renaming a key or a choice value orphans
+  old cases' answers. Add new keys/values instead, and keep `QUESTION_ORDER` in step with `QUESTIONS`.
 - Production redirects to HTTPS except `/healthz` (the platform probes it over HTTP); keep the
   exemption if you add probes.
 

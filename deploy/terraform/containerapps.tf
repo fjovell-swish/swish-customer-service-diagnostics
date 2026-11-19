@@ -1,6 +1,9 @@
-# Azure Container Apps: one environment, one app (deploy/web.Dockerfile), external ingress behind
-# the auth proxy. The app reads api-ocpp's existing database: it creates no database of its own
-# (its few tables, support users created on first visit, live in an SQLite file in the container).
+# Azure Container Apps: one environment on the VNet, from the one image (deploy/web.Dockerfile):
+#
+#   web       external ingress behind the auth proxy, gunicorn
+#   migrate   manual job, `migrate --noinput`, run by deploy/scripts/deploy.sh before every rollout
+#
+# Cases and users go to this app's Postgres (postgres.tf); api-ocpp's database is read-only.
 
 resource "random_password" "django_secret" {
   length  = 50
@@ -19,10 +22,8 @@ resource "azurerm_container_app_environment" "env" {
   location                   = azurerm_resource_group.rg.location
   resource_group_name        = azurerm_resource_group.rg.name
   log_analytics_workspace_id = azurerm_log_analytics_workspace.logs.id
-  # Set when api-ocpp's Postgres is only reachable privately: a subnet delegated to
-  # Microsoft.App/environments, on a VNet that reaches it. Empty: public outbound IPs (outputs.tf).
-  infrastructure_subnet_id = var.infrastructure_subnet_id != "" ? var.infrastructure_subnet_id : null
-  tags                     = local.tags
+  infrastructure_subnet_id   = azurerm_subnet.apps.id
+  tags                       = local.tags
 
   workload_profile {
     name                  = "Consumption"
@@ -37,6 +38,7 @@ locals {
   secret_values = {
     "django-secret-key" = { env = "SECRET_KEY", value = random_password.django_secret.result }
     "proxy-secret"      = { env = "AUTH_PROXY_SECRET", value = random_password.proxy_secret.result }
+    "database-url"      = { env = "DATABASE_URL", value = local.database_url }
     "ocpp-database-url" = { env = "OCPP_DATABASE_URL", value = var.ocpp_database_url }
     "sentry-dsn"        = { env = "SENTRY_DSN", value = var.sentry_dsn }
   }
@@ -124,6 +126,67 @@ resource "azurerm_container_app" "web" {
         port             = 8000
         path             = "/healthz"
         interval_seconds = 5
+      }
+    }
+  }
+
+  depends_on = [azurerm_role_assignment.acr_pull]
+}
+
+# Migrations, as a manual job on the new image before the app rolls (deploy/scripts/migrate.sh).
+
+resource "azurerm_container_app_job" "migrate" {
+  name                         = "caj-${local.name}-migrate"
+  location                     = azurerm_resource_group.rg.location
+  resource_group_name          = azurerm_resource_group.rg.name
+  container_app_environment_id = azurerm_container_app_environment.env.id
+  workload_profile_name        = "Consumption"
+  replica_timeout_in_seconds   = 600
+  replica_retry_limit          = 0
+  tags                         = local.tags
+
+  manual_trigger_config {
+    parallelism              = 1
+    replica_completion_count = 1
+  }
+
+  identity {
+    type         = "UserAssigned"
+    identity_ids = [azurerm_user_assigned_identity.apps.id]
+  }
+  registry {
+    server   = azurerm_container_registry.acr.login_server
+    identity = azurerm_user_assigned_identity.apps.id
+  }
+  dynamic "secret" {
+    for_each = local.secrets
+    content {
+      name  = secret.key
+      value = secret.value.value
+    }
+  }
+
+  template {
+    container {
+      name   = "migrate"
+      image  = local.web_image
+      cpu    = 0.25
+      memory = "0.5Gi"
+      args   = ["python", "manage.py", "migrate", "--noinput"]
+
+      dynamic "env" {
+        for_each = local.env
+        content {
+          name  = env.key
+          value = env.value
+        }
+      }
+      dynamic "env" {
+        for_each = local.secrets
+        content {
+          name        = env.value.env
+          secret_name = env.key
+        }
       }
     }
   }

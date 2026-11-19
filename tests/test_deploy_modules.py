@@ -28,6 +28,7 @@ def production_env() -> dict[str, str]:
         "DJANGO_ALLOWED_HOSTS": "diagnostics.example",
         "DJANGO_CSRF_TRUSTED_ORIGINS": "https://diagnostics.example,",
         "AUTH_PROXY_SECRET": "proxy-secret",
+        "DATABASE_URL": "postgres://app:pw@db.internal:5432/diagnostics",
         "OCPP_DATABASE_URL": "postgres://readonly:pw@ocpp.internal:5432/ocpp",
         "OCPP_TENANTS": "public, eosgie",
     }
@@ -68,7 +69,7 @@ def test_production_settings_come_from_the_environment(
     assert prod.AUTH_PROXY["PROXY_SECRET"] == "proxy-secret"
     assert prod.AUTHENTICATION_BACKENDS == ["config.auth_proxy.GroupRemoteUserBackend"]
     assert prod.SESSION_COOKIE_SECURE and prod.CSRF_COOKIE_SECURE and prod.SECURE_SSL_REDIRECT
-    assert prod.DATABASES["default"]["ENGINE"] == "django.db.backends.sqlite3"
+    assert prod.DATABASES["default"]["HOST"] == "db.internal"
 
 
 def test_production_settings_api_ocpp_is_read_only_per_tenant(
@@ -88,22 +89,13 @@ def test_production_settings_api_ocpp_is_read_only_per_tenant(
     )
 
 
-def test_production_settings_own_database_from_url(
-    fresh_import: Callable[..., ModuleType],
-) -> None:
-    prod = fresh_import(
-        "config.settings.production", DATABASE_URL="postgres://app:pw@db.internal/diagnostics"
-    )
-
-    assert prod.DATABASES["default"]["HOST"] == "db.internal"
-
-
 @pytest.mark.parametrize(
     "missing",
     [
         "SECRET_KEY",
         "DJANGO_ALLOWED_HOSTS",
         "AUTH_PROXY_SECRET",
+        "DATABASE_URL",
         "OCPP_DATABASE_URL",
         "OCPP_TENANTS",
     ],

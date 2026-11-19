@@ -11,10 +11,11 @@ COPY --chown=app:app deploy/entrypoints ./deploy/entrypoints
 COPY --chown=app:app config ./config
 COPY --chown=app:app diagnostics ./diagnostics
 COPY --chown=app:app services ./services
-RUN mkdir -p /app/staticfiles /app/data && chown app:app /app/staticfiles /app/data
+RUN mkdir -p /app/staticfiles && chown app:app /app/staticfiles
 USER app
 # Placeholders: collectstatic only needs the settings to import; no real secret is baked in.
-RUN SECRET_KEY=build DJANGO_ALLOWED_HOSTS=x AUTH_PROXY_SECRET=build OCPP_DATABASE_URL=postgres://x/x \
+RUN SECRET_KEY=build DJANGO_ALLOWED_HOSTS=x AUTH_PROXY_SECRET=build DATABASE_URL=postgres://x/x \
+    OCPP_DATABASE_URL=postgres://x/x \
     OCPP_TENANTS=public python manage.py collectstatic --noinput --settings config.settings.production
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s \

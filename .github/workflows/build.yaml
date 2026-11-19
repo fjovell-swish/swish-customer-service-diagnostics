@@ -52,6 +52,7 @@ jobs:
           docker run --rm \
             -e SECRET_KEY="$(python3 -c 'import secrets; print(secrets.token_urlsafe(50))')" \
             -e DJANGO_ALLOWED_HOSTS=diagnostics.example -e AUTH_PROXY_SECRET=ci \
+            -e DATABASE_URL=sqlite:////tmp/db.sqlite3 \
             -e OCPP_DATABASE_URL=postgres://ci:ci@localhost/ci -e OCPP_TENANTS=public \
             swishdiag-web:ci python manage.py check --deploy --fail-level WARNING --database default
 
@@ -59,6 +60,7 @@ jobs:
         run: |
           docker run -d --name web -p 8000:8000 \
             -e SECRET_KEY=ci -e DJANGO_ALLOWED_HOSTS=localhost -e AUTH_PROXY_SECRET=ci \
+            -e DATABASE_URL=sqlite:////tmp/db.sqlite3 \
             -e OCPP_DATABASE_URL=postgres://ci:ci@localhost/ci -e OCPP_TENANTS=public \
             swishdiag-web:ci
           for _ in $(seq 1 30); do curl -fsS http://localhost:8000/healthz && exit 0; sleep 1; done

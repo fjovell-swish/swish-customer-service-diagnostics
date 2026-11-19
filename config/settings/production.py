@@ -2,12 +2,11 @@
 Production (and every deployed environment, staging included): DEBUG off, every value from the
 environment. wsgi.py defaults to this module.
 
-Required: SECRET_KEY, DJANGO_ALLOWED_HOSTS, AUTH_PROXY_SECRET, OCPP_DATABASE_URL (a read-only
-user on api-ocpp's database), OCPP_TENANTS (api-ocpp's TENANT_SCHEMAS, comma-separated).
-Optional: DATABASE_URL (this app's own tables; an SQLite file in the container by default, which
-is enough: users are created by the auth proxy on first visit and sessions live in cookies),
-DJANGO_CSRF_TRUSTED_ORIGINS, AUTH_PROXY_* header names and groups (settings/base.py), SENTRY_DSN,
-SENTRY_TRACES_SAMPLE_RATE, ENVIRONMENT, IMAGE_TAG, LOG_LEVEL, LOG_FORMAT.
+Required: SECRET_KEY, DJANGO_ALLOWED_HOSTS, AUTH_PROXY_SECRET, DATABASE_URL (this app's own
+Postgres: cases and users), OCPP_DATABASE_URL (a read-only user on api-ocpp's database),
+OCPP_TENANTS (api-ocpp's TENANT_SCHEMAS, comma-separated).
+Optional: DJANGO_CSRF_TRUSTED_ORIGINS, AUTH_PROXY_* header names and groups (settings/base.py),
+SENTRY_DSN, SENTRY_TRACES_SAMPLE_RATE, ENVIRONMENT, IMAGE_TAG, LOG_LEVEL, LOG_FORMAT.
 """
 
 import os
@@ -17,7 +16,6 @@ import dj_database_url
 
 from config.sentry import init_sentry
 from config.settings.base import AUTH_PROXY
-from config.settings.base import BASE_DIR
 from config.settings.base import *  # noqa: F401,F403
 from config.settings.base import ocpp_databases
 
@@ -45,9 +43,7 @@ AUTH_PROXY = {**AUTH_PROXY, "PROXY_SECRET": os.environ["AUTH_PROXY_SECRET"]}
 
 DATABASES: dict[str, dict[str, Any]] = {
     "default": dict(
-        dj_database_url.parse(
-            os.environ.get("DATABASE_URL", f"sqlite:///{BASE_DIR / 'data' / 'db.sqlite3'}")
-        )
+        dj_database_url.parse(os.environ["DATABASE_URL"], conn_max_age=60, conn_health_checks=True)
     ),
     # Read-only twice over: the database user should only have SELECT, and every transaction is
     # read-only, so nothing in this app can write to api-ocpp by accident.

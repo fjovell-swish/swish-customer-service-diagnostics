@@ -16,7 +16,7 @@ output "web_url" {
 }
 
 output "outbound_ip_addresses" {
-  description = "Allow these in api-ocpp's Postgres firewall (unless infrastructure_subnet_id puts the app on a VNet that reaches it)"
+  description = "Allow these in api-ocpp's Postgres firewall"
   value       = azurerm_container_app.web.outbound_ip_addresses
 }
 

@@ -11,6 +11,7 @@ from datetime import timedelta
 from enum import IntEnum
 from uuid import UUID
 
+from diagnostics.snapshot import LOOKBACK
 from diagnostics.snapshot import Snapshot
 from services.ocpp.models import ConnectorV16
 from services.ocpp.models import TransactionV16
@@ -265,7 +266,17 @@ def check_connection(snapshot: Snapshot, now: datetime) -> list[Finding]:
 
 
 def check_connection_stability(snapshot: Snapshot, now: datetime) -> list[Finding]:
-    disconnects = sum(1 for incident in snapshot.incidents if incident.event == "disconnected")
+    # Over the last 24 h whatever the snapshot's window: the threshold is per day.
+    since = now - LOOKBACK
+    disconnects = len(
+        [
+            incident
+            for incident in snapshot.incidents
+            if incident.event == "disconnected"
+            and incident.started_at is not None
+            and incident.started_at >= since
+        ]
+    )
     if disconnects < FLAPPING_DISCONNECTS:
         return []
     return [

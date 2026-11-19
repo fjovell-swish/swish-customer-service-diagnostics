@@ -56,10 +56,26 @@ variable "ocpp_tenants" {
   default     = ["public"]
 }
 
-variable "infrastructure_subnet_id" {
-  description = "Optional subnet (delegated to Microsoft.App/environments) when api-ocpp's Postgres is only reachable privately"
+variable "vnet_address_space" {
+  description = "The app's VNet; must not overlap anything it may be peered with"
   type        = string
-  default     = ""
+  default     = "10.41.0.0/16"
+}
+
+variable "postgres_sku" {
+  description = "Flexible Server SKU for the app's own database (cases, users)"
+  type        = string
+  default     = "B_Standard_B1ms"
+}
+
+variable "postgres_storage_mb" {
+  type    = number
+  default = 32768
+}
+
+variable "postgres_admin_user" {
+  type    = string
+  default = "swishdiag"
 }
 
 variable "sentry_dsn" {

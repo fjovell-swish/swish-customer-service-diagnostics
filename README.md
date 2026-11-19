@@ -1,14 +1,45 @@
 # swish-customer-service-diagnostics
 
-A Django page for customer support. When a customer says **"the charger doesn't work"**, support
-types the charger's identity, name or serial number and gets:
+A guided workflow for customer support. When a customer says **"the charger doesn't work"**, the
+rep finds the charger (identity, name or serial number; every api-ocpp tenant is searched) and
+starts a **case**. The app then:
 
-- a **verdict**: the backend sees a problem / something looks off / the charger looks healthy;
-- **findings**, worst first. Each one has what the backend sees, what support or ops should do, and a
-  **suggested reply** for the customer with a Copy button;
-- the charger's connectors and its sessions from the last 24 h (plus any session still open).
+1. checks what api-ocpp knows about the charger (live: connection, faults, refused badges,
+   sessions, maintenance, firmware);
+2. **asks the rep only the questions that matter** for that charger and those answers (below);
+3. writes a **diagnosis**: the likely cause with a confidence, the next steps, a **reply for the
+   customer** and a **summary for the ticket**, both with a Copy button.
 
-Support doesn't need to know the tenant: the lookup searches every api-ocpp tenant schema.
+Cases are saved (history in the admin, with who opened them and the ticket number), so a case can
+be reopened, diagnosed again with the latest data, or closed.
+
+## The workflow
+
+Questions (`diagnostics/workflow.py`, `QUESTIONS`), each asked only when it can change the answer:
+
+| Question | Asked when |
+| --- | --- |
+| When did it happen? | always. "Before today" looks back 7 days instead of 24 h |
+| Which connector? | the charger has more than one |
+| What does the customer see? | always: nothing happens, refused, starts but doesn't charge, stops early, cable stuck, error on screen |
+| Does the charger have power? | the charger is offline, or "nothing happens" |
+| How did they start? | refused / doesn't charge / stops / other: badge, Swish app, other app or roaming card, Plug & Charge |
+| The badge number | they used a badge (free text, may stay empty) |
+| Did the charger react to the badge? | the backend never heard of that badge (no refusal, no session) |
+| What does the screen say? | "error on screen" (free text) |
+| Does the car charge on other chargers? | doesn't charge / stops early |
+
+Diagnosis (`RULES`, in order, the first that explains the complaint wins; every finding still goes
+in the ticket summary): charger not activated → offline (no power / power but no network /
+unknown) → charger or connector out of service → connector faulted (advice per OCPP error code) →
+cable stuck → badge refused (advice per refusal reason) → badge never heard of (reader vs.
+connectivity) → app start never arrived → car not charging (power held back, car side, car refusing
+power, stopped early with the stop reason, no energy delivered) → old session blocking the
+connector → error on screen → the worst finding → "no fault visible", with what to ask next.
+
+The rep can go **Back** one question, **start the questions over**, **diagnose again** with the
+latest data, or **close** the case. The diagnosis is stored as written when the last question was
+answered: the charger's live state moves on, the case keeps what support saw and told the customer.
 
 ## What it checks
 
@@ -39,7 +70,7 @@ Python 3.15. Nothing else is needed: the local settings are hard-coded (SQLite, 
 ```bash
 python3.15 -m venv .venv && . .venv/bin/activate
 pip install -r test-requirements.txt
-python manage.py migrate                 # this app's own tables (users) only
+python manage.py migrate                 # this app's own tables (cases, users) only
 python manage.py createsuperuser
 python manage.py runserver               # http://localhost:8000/
 ```
@@ -51,7 +82,8 @@ To look at real chargers, point it at an environment's api-ocpp through a **read
 OCPP_DATABASE_URL=postgres://readonly:...@host:5432/ocpp OCPP_TENANTS=public,eosgie python manage.py runserver
 ```
 
-`docker compose up --build web` runs the production image locally (see docker-compose.yml).
+`docker compose up --build web` runs the production image locally, migrated, on the compose
+Postgres (see docker-compose.yml).
 
 ## Signing in
 
@@ -130,7 +162,8 @@ CI (`.github/workflows/`):
 ## Deployment
 
 Azure Container Apps, with Terraform in `deploy/terraform/` (first-time setup in its README) and
-scripts in `deploy/scripts/`. Releases are tags:
+scripts in `deploy/scripts/`. Per environment: a VNet, the `web` app, a `migrate` job, and a private
+Postgres for the app's own data (cases, users). Releases are tags:
 
 ```bash
 git tag v1.0.0 && git push origin v1.0.0     # staging, then production after approval
@@ -139,7 +172,8 @@ git tag v1.0.0 && git push origin v1.0.0     # staging, then production after ap
 | Script | Does |
 | --- | --- |
 | `bootstrap.sh <env>` | first-time creation of an environment |
-| `deploy.sh <env> [--tag T] [--plan]` | build+push (unless `--tag`), `terraform apply`, health check |
+| `deploy.sh <env> [--tag T] [--plan]` | build+push (unless `--tag`), migrate on the new image, roll the app, health check |
+| `migrate.sh <env>` | run the migrate job and wait for it |
 | `promote.sh <from> <to> <tag>` | copy an image between registries by digest, no rebuild |
 | `rollback.sh <env> <tag>` | redeploy a previous tag |
 | `health.sh <env>` | `/healthz`, `check --deploy`, and a read of api-ocpp from inside the app |
@@ -147,5 +181,4 @@ git tag v1.0.0 && git push origin v1.0.0     # staging, then production after ap
 | `logs.sh <env>` | follow the app's logs |
 
 The app needs network access to the environment's api-ocpp Postgres: allow the app's outbound IPs
-(`terraform output outbound_ip_addresses`) in its firewall, or put the app on a VNet that reaches it
-(`infrastructure_subnet_id`).
+(`terraform output outbound_ip_addresses`) in its firewall.

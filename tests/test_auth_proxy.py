@@ -13,7 +13,7 @@ pytestmark = pytest.mark.django_db
 
 @pytest.fixture
 def page() -> str:
-    return reverse("diagnose")
+    return reverse("start")
 
 
 @pytest.fixture

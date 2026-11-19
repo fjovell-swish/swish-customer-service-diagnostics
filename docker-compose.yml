@@ -1,6 +1,6 @@
 # Local stack.
 #   docker compose up -d postgres     # the database `DJANGO_SETTINGS_MODULE=config.settings.ci pytest` uses
-#   docker compose up --build web     # the production image on :8000, against that Postgres
+#   docker compose up --build web     # the production image on :8000 (migrated first), against that Postgres
 # The web service has no auth proxy in front of it and no proxy secret, so it trusts identity headers
 # as they come: send X-Forwarded-User and X-Forwarded-Groups: swish-support (a header-editing
 # browser extension or curl -H ...). Never run it like this anywhere else.
@@ -21,22 +21,32 @@ services:
       timeout: 5s
       retries: 10
 
-  web:
-    build:
+  # The app's own tables (cases, users), on the image, before web starts: what the migrate job does.
+  migrate:
+    build: &web-build
       context: .
       dockerfile: deploy/web.Dockerfile
-    environment:
+    environment: &web-env
       SECRET_KEY: compose-only-not-a-secret
       DJANGO_ALLOWED_HOSTS: "*"
       DJANGO_CSRF_TRUSTED_ORIGINS: "http://localhost:8000"
       AUTH_PROXY_SECRET: ""
+      DATABASE_URL: postgres://swish:swish@postgres:5432/swish
       # Point at a real api-ocpp (read-only user) to look at real chargers.
       OCPP_DATABASE_URL: ${OCPP_DATABASE_URL:-postgres://swish:swish@postgres:5432/swish}
       OCPP_TENANTS: ${OCPP_TENANTS:-public}
       LOG_FORMAT: plain
       SENTRY_DSN: ""
-    ports:
-      - "8000:8000"
+    command: ["python", "manage.py", "migrate", "--noinput"]
     depends_on:
       postgres:
         condition: service_healthy
+
+  web:
+    build: *web-build
+    environment: *web-env
+    ports:
+      - "8000:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully

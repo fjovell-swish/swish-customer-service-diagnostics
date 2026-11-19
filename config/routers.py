@@ -21,6 +21,13 @@ class ServiceRouter:
     def db_for_write(self, model: type[Model], **hints: Any) -> str | None:
         return self.db_for_read(model, **hints)
 
+    def allow_relation(self, obj1: Model, obj2: Model, **hints: Any) -> bool | None:
+        # Every tenant alias holds the same api-ocpp schema: an object read from one tenant
+        # relates to the others of that tenant, whichever alias the default would pick.
+        if obj1._meta.app_label == obj2._meta.app_label == OCPP_APP_LABEL:
+            return True
+        return None
+
     def allow_migrate(
         self, db: str, app_label: str, model_name: str | None = None, **hints: Any
     ) -> bool:

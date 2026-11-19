@@ -10,6 +10,7 @@ tf apply -auto-approve -var-file="$TFVARS" -target=azurerm_container_registry.ac
 TAG="$("$ROOT/deploy/scripts/build-push.sh" "$ENV" | tail -1)"
 log "creating everything else"
 tf apply -auto-approve -var-file="$TFVARS" -var "image_tag=$TAG"
+"$ROOT/deploy/scripts/migrate.sh" "$ENV"
 log "allow these in api-ocpp's Postgres firewall: $(tf output -json outbound_ip_addresses)"
 "$ROOT/deploy/scripts/health.sh" "$ENV"
 log "web: $(tf output -raw web_url)"
