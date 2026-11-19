@@ -1,8 +1,8 @@
 # Regenerate services/ocpp/models.py from a live api-ocpp schema with Django's inspectdb.
 #
 # On top of plain inspectdb this keeps the class names the code imports (inspectdb would name
-# `charge_points_v16` "ChargePointsV16"), reads Postgres `json` columns as JSON (inspectdb only knows
-# `jsonb`), types api-ocpp's Postgres enums as text, and skips tables that aren't api-ocpp's.
+# `charge_points_v16` "ChargePointsV16"), reads Postgres `json` columns as JSON (inspectdb only
+# knows `jsonb`), types api-ocpp's Postgres enums as text, and skips tables that aren't api-ocpp's.
 from pathlib import Path
 from typing import Any
 
@@ -17,7 +17,8 @@ MODELS_PATH = Path(__file__).resolve().parents[2] / "models.py"
 # Postgres type OID of `json`, which Django's introspection doesn't map.
 JSON_TYPE_OID = 114
 
-# Tables that live in a tenant schema without being api-ocpp's: PostGIS metadata and Alembic's version table.
+# Tables that live in a tenant schema without being api-ocpp's: PostGIS metadata and Alembic's
+# version table.
 IGNORED_TABLES = {"spatial_ref_sys", "alembic_version"}
 
 # Class names the code already imports. A table missing here gets inspectdb's default name.
@@ -80,9 +81,17 @@ class Command(inspectdb.Command):
             "--database",
             default=f"ocpp_{settings.OCPP_TENANTS[0]}",
             choices=tuple(connections),
-            help="api-ocpp tenant alias to introspect (default: the first tenant). All tenants share the schema.",
+            help=(
+                "api-ocpp tenant alias to introspect (default: the first tenant). All tenants"
+                " share the schema."
+            ),
         )
-        parser.add_argument("--output", type=Path, default=MODELS_PATH, help="File to write (default: %(default)s).")
+        parser.add_argument(
+            "--output",
+            type=Path,
+            default=MODELS_PATH,
+            help="File to write (default: %(default)s).",
+        )
 
     def handle(self, **options: Any) -> None:
         self.enum_type_oids: set[int] | None = None
@@ -98,7 +107,8 @@ class Command(inspectdb.Command):
             )
         )
         # Swap inspectdb's clean-up instructions for our header: this output is used as is.
-        body = lines[lines.index(f"from {self.db_module} import models") + 1 :]
+        first_model_line = lines.index(f"from {self.db_module} import models") + 1
+        body = lines[first_model_line:]
         output: Path = options["output"]
         output.write_text("\n".join([HEADER, *body]) + "\n")
         model_count = sum(1 for line in body if line.startswith("class "))

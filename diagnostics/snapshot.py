@@ -47,7 +47,10 @@ def ocpp_alias(tenant: str) -> str:
 
 
 def find_chargers(query: str) -> list[ChargerMatch]:
-    """Chargers matching an identity exactly, or else a name, identity or serial fragment, in every tenant."""
+    """Chargers matching an identity exactly, or else a name, identity or serial fragment.
+
+    Every tenant is searched.
+    """
     query = query.strip()
     if not query:
         return []
@@ -73,9 +76,12 @@ def find_chargers(query: str) -> list[ChargerMatch]:
 def collect(tenant: str, charge_point: ChargePointV16, now: datetime) -> Snapshot:
     alias = ocpp_alias(tenant)
     since = now - LOOKBACK
-    connectors = list(ConnectorV16.objects.using(alias).filter(charge_point_id=charge_point.id).order_by("index"))
+    connectors = list(
+        ConnectorV16.objects.using(alias).filter(charge_point_id=charge_point.id).order_by("index")
+    )
     connector_ids = [connector.id for connector in connectors]
-    # Ongoing transactions are kept whatever their age: an old one is exactly the stuck session to spot.
+    # Ongoing transactions are kept whatever their age: an old one is exactly the stuck session
+    # to spot.
     transactions = (
         TransactionV16.objects.using(alias)
         .filter(connector_id__in=connector_ids)
@@ -103,6 +109,8 @@ def collect(tenant: str, charge_point: ChargePointV16, now: datetime) -> Snapsho
             .order_by("-maintenance_at")[:MAX_ROWS]
         ),
         firmwares=list(
-            FirmwareV16.objects.using(alias).filter(charge_point_id=charge_point.id).order_by("-created_at")[:1]
+            FirmwareV16.objects.using(alias)
+            .filter(charge_point_id=charge_point.id)
+            .order_by("-created_at")[:1]
         ),
     )

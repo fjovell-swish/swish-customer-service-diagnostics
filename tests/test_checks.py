@@ -3,20 +3,22 @@ from datetime import timedelta
 
 import pytest
 
+from diagnostics.checks import ERROR_CODE_ADVICE
+from diagnostics.checks import FLAPPING_DISCONNECTS
+from diagnostics.checks import REJECTION_ADVICE
+from diagnostics.checks import Severity
 from diagnostics.checks import ago
 from diagnostics.checks import check_availability
 from diagnostics.checks import check_connection
 from diagnostics.checks import check_connection_stability
 from diagnostics.checks import check_connectors
 from diagnostics.checks import check_firmware
+from diagnostics.checks import check_maintenance
 from diagnostics.checks import check_registration
 from diagnostics.checks import check_rejected_badges
 from diagnostics.checks import check_transactions
-from diagnostics.checks import ERROR_CODE_ADVICE
-from diagnostics.checks import FLAPPING_DISCONNECTS
-from diagnostics.checks import REJECTION_ADVICE
 from diagnostics.checks import run_checks
-from diagnostics.checks import Severity
+from diagnostics.checks import stop_reason_action
 from diagnostics.checks import verdict
 
 
@@ -27,7 +29,9 @@ def test_run_checks_healthy_charger(make_snapshot, now: datetime) -> None:
     assert verdict(findings)[0] == Severity.OK
 
 
-def test_run_checks_sorts_worst_first(make_snapshot, make_charge_point, make_connector, now: datetime) -> None:
+def test_run_checks_sorts_worst_first(
+    make_snapshot, make_charge_point, make_connector, now: datetime
+) -> None:
     snapshot = make_snapshot(
         charge_point=make_charge_point(connected=False),
         connectors=[make_connector(status="suspended_ev")],
@@ -40,7 +44,9 @@ def test_run_checks_sorts_worst_first(make_snapshot, make_charge_point, make_con
 
 
 def test_registration_inactive_charger(make_snapshot, make_charge_point, now: datetime) -> None:
-    findings = check_registration(make_snapshot(charge_point=make_charge_point(is_active=False)), now)
+    findings = check_registration(
+        make_snapshot(charge_point=make_charge_point(is_active=False)), now
+    )
 
     assert findings[0].severity == Severity.PROBLEM
     assert findings[0].title == "Charger not activated"
@@ -66,8 +72,12 @@ def test_connection_offline_reports_since_last_disconnect(
     assert finding.customer_reply
 
 
-def test_connection_silent_when_heartbeat_stale(make_snapshot, make_charge_point, now: datetime) -> None:
-    snapshot = make_snapshot(charge_point=make_charge_point(last_heartbeat=now - timedelta(minutes=30)))
+def test_connection_silent_when_heartbeat_stale(
+    make_snapshot, make_charge_point, now: datetime
+) -> None:
+    snapshot = make_snapshot(
+        charge_point=make_charge_point(last_heartbeat=now - timedelta(minutes=30))
+    )
 
     finding = check_connection(snapshot, now)[0]
 
@@ -75,7 +85,9 @@ def test_connection_silent_when_heartbeat_stale(make_snapshot, make_charge_point
     assert finding.severity == Severity.PROBLEM
 
 
-def test_connection_silent_without_any_heartbeat(make_snapshot, make_charge_point, now: datetime) -> None:
+def test_connection_silent_without_any_heartbeat(
+    make_snapshot, make_charge_point, now: datetime
+) -> None:
     snapshot = make_snapshot(charge_point=make_charge_point(last_heartbeat=None))
 
     assert check_connection(snapshot, now)[0].title == "Connected but silent"
@@ -89,7 +101,9 @@ def test_connection_stability_flags_flapping(make_snapshot, make_incident, now: 
     assert findings[0].title == "Unstable connection"
 
 
-def test_connection_stability_ignores_connect_events(make_snapshot, make_incident, now: datetime) -> None:
+def test_connection_stability_ignores_connect_events(
+    make_snapshot, make_incident, now: datetime
+) -> None:
     incidents = [make_incident(event="connected") for _ in range(FLAPPING_DISCONNECTS)]
 
     assert check_connection_stability(make_snapshot(incidents=incidents), now) == []
@@ -109,7 +123,9 @@ def test_availability_inoperative_charger_and_connector(
 
 
 @pytest.mark.parametrize("error_code", sorted(ERROR_CODE_ADVICE))
-def test_connectors_faulted_uses_error_code_advice(make_snapshot, make_connector, now: datetime, error_code) -> None:
+def test_connectors_faulted_uses_error_code_advice(
+    make_snapshot, make_connector, now: datetime, error_code
+) -> None:
     snapshot = make_snapshot(connectors=[make_connector(status="faulted", error_code=error_code)])
 
     finding = check_connectors(snapshot, now)[0]
@@ -118,13 +134,17 @@ def test_connectors_faulted_uses_error_code_advice(make_snapshot, make_connector
     assert (finding.action, finding.customer_reply) == ERROR_CODE_ADVICE[error_code]
 
 
-def test_connectors_faulted_without_error_code(make_snapshot, make_connector, now: datetime) -> None:
+def test_connectors_faulted_without_error_code(
+    make_snapshot, make_connector, now: datetime
+) -> None:
     snapshot = make_snapshot(connectors=[make_connector(status="faulted", error_code=None)])
 
     assert check_connectors(snapshot, now)[0].title == "Connector 1 faulted: other_error"
 
 
-def test_connectors_error_code_while_available_is_a_warning(make_snapshot, make_connector, now: datetime) -> None:
+def test_connectors_error_code_while_available_is_a_warning(
+    make_snapshot, make_connector, now: datetime
+) -> None:
     snapshot = make_snapshot(connectors=[make_connector(error_code="weak_signal")])
 
     finding = check_connectors(snapshot, now)[0]
@@ -141,20 +161,28 @@ def test_connectors_error_code_while_available_is_a_warning(make_snapshot, make_
         ("suspended_evse", "Connector 1: the charger is holding back power"),
     ],
 )
-def test_connectors_status(make_snapshot, make_connector, now: datetime, status: str, title: str) -> None:
+def test_connectors_status(
+    make_snapshot, make_connector, now: datetime, status: str, title: str
+) -> None:
     snapshot = make_snapshot(connectors=[make_connector(status=status)])
 
     assert check_connectors(snapshot, now)[0].title == title
 
 
 def test_connectors_preparing_too_long(make_snapshot, make_connector, now: datetime) -> None:
-    snapshot = make_snapshot(connectors=[make_connector(status="preparing", updated_at=now - timedelta(minutes=40))])
+    snapshot = make_snapshot(
+        connectors=[make_connector(status="preparing", updated_at=now - timedelta(minutes=40))]
+    )
 
     assert check_connectors(snapshot, now)[0].title == "Connector 1 stuck in preparing"
 
 
-def test_connectors_preparing_briefly_is_fine(make_snapshot, make_connector, now: datetime) -> None:
-    snapshot = make_snapshot(connectors=[make_connector(status="preparing", updated_at=now - timedelta(minutes=2))])
+def test_connectors_preparing_briefly_is_fine(
+    make_snapshot, make_connector, now: datetime
+) -> None:
+    snapshot = make_snapshot(
+        connectors=[make_connector(status="preparing", updated_at=now - timedelta(minutes=2))]
+    )
 
     assert check_connectors(snapshot, now) == []
 
@@ -163,7 +191,9 @@ def test_connectors_none_known(make_snapshot, now: datetime) -> None:
     assert check_connectors(make_snapshot(connectors=[]), now)[0].title == "No connectors known"
 
 
-def test_rejected_badges_grouped_per_badge_and_reason(make_snapshot, make_rejection, now: datetime) -> None:
+def test_rejected_badges_grouped_per_badge_and_reason(
+    make_snapshot, make_rejection, now: datetime
+) -> None:
     rejections = [
         make_rejection(),
         make_rejection(),
@@ -180,25 +210,38 @@ def test_rejected_badges_grouped_per_badge_and_reason(make_snapshot, make_reject
     assert findings[1].customer_reply == REJECTION_ADVICE["PRIVATE_CHARGER"][1]
 
 
-def test_rejected_badges_unknown_reason_falls_back(make_snapshot, make_rejection, now: datetime) -> None:
-    findings = check_rejected_badges(make_snapshot(rejected_rfids=[make_rejection(reason_kind="NEW_KIND")]), now)
+def test_rejected_badges_unknown_reason_falls_back(
+    make_snapshot, make_rejection, now: datetime
+) -> None:
+    findings = check_rejected_badges(
+        make_snapshot(rejected_rfids=[make_rejection(reason_kind="NEW_KIND")]), now
+    )
 
     assert findings[0].action == REJECTION_ADVICE["UNKNOWN"][0]
 
 
-def test_transactions_pending_without_energy(make_snapshot, make_connector, make_transaction, now: datetime) -> None:
+def test_transactions_pending_without_energy(
+    make_snapshot, make_connector, make_transaction, now: datetime
+) -> None:
     connector = make_connector()
     transaction = make_transaction(
-        status="PENDING", started_at=now - timedelta(minutes=20), ended_at=None, connector_id=connector.id
+        status="PENDING",
+        started_at=now - timedelta(minutes=20),
+        ended_at=None,
+        connector_id=connector.id,
     )
 
-    findings = check_transactions(make_snapshot(connectors=[connector], transactions=[transaction]), now)
+    findings = check_transactions(
+        make_snapshot(connectors=[connector], transactions=[transaction]), now
+    )
 
     assert findings[0].title == "Session #1234 on Connector 1 started but no energy"
 
 
 def test_transactions_stuck_ongoing(make_snapshot, make_transaction, now: datetime) -> None:
-    transaction = make_transaction(status="ONGOING", started_at=now - timedelta(days=3), ended_at=None)
+    transaction = make_transaction(
+        status="ONGOING", started_at=now - timedelta(days=3), ended_at=None
+    )
 
     finding = check_transactions(make_snapshot(transactions=[transaction]), now)[0]
 
@@ -206,19 +249,27 @@ def test_transactions_stuck_ongoing(make_snapshot, make_transaction, now: dateti
     assert finding.title == "Session #1234 on Unknown connector still open after 3 days"
 
 
-def test_transactions_recent_ongoing_is_fine(make_snapshot, make_transaction, now: datetime) -> None:
-    transaction = make_transaction(status="ONGOING", started_at=now - timedelta(hours=1), ended_at=None)
+def test_transactions_recent_ongoing_is_fine(
+    make_snapshot, make_transaction, now: datetime
+) -> None:
+    transaction = make_transaction(
+        status="ONGOING", started_at=now - timedelta(hours=1), ended_at=None
+    )
 
     assert check_transactions(make_snapshot(transactions=[transaction]), now) == []
 
 
 def test_transactions_failed(make_snapshot, make_transaction, now: datetime) -> None:
-    findings = check_transactions(make_snapshot(transactions=[make_transaction(status="FAILED")]), now)
+    findings = check_transactions(
+        make_snapshot(transactions=[make_transaction(status="FAILED")]), now
+    )
 
     assert findings[0].title.endswith("failed")
 
 
-def test_transactions_finished_without_energy(make_snapshot, make_transaction, now: datetime) -> None:
+def test_transactions_finished_without_energy(
+    make_snapshot, make_transaction, now: datetime
+) -> None:
     transaction = make_transaction(energy_delivered=0.0, reason="ev_disconnected")
 
     finding = check_transactions(make_snapshot(transactions=[transaction]), now)[0]
@@ -227,7 +278,9 @@ def test_transactions_finished_without_energy(make_snapshot, make_transaction, n
     assert "unplugged" in finding.customer_reply
 
 
-def test_transactions_finished_with_energy_is_fine(make_snapshot, make_transaction, now: datetime) -> None:
+def test_transactions_finished_with_energy_is_fine(
+    make_snapshot, make_transaction, now: datetime
+) -> None:
     assert check_transactions(make_snapshot(transactions=[make_transaction()]), now) == []
 
 
@@ -266,3 +319,31 @@ def test_ago(now: datetime, delta: timedelta, expected: str) -> None:
 
 def test_ago_never(now: datetime) -> None:
     assert ago(None, now) == "never"
+
+
+@pytest.mark.parametrize(
+    ("reason", "expected"),
+    [
+        ("ev_disconnected", "unplugged right away"),
+        ("power_loss", "restarted or lost power"),
+        ("soft_reset", "restarted or lost power"),
+        ("emergency_stop", "Emergency stop"),
+        ("de_authorized", "authorisation was revoked"),
+        ("other", "GetDiagnostics"),
+    ],
+)
+def test_stop_reason_action(reason: str, expected: str) -> None:
+    assert expected in stop_reason_action(reason)
+
+
+def test_verdict_warning(make_snapshot, make_connector, now: datetime) -> None:
+    findings = run_checks(make_snapshot(connectors=[make_connector(status="suspended_ev")]), now)
+
+    assert verdict(findings)[0] == Severity.WARNING
+
+
+def test_maintenance_recorded(make_snapshot, make_maintenance, now: datetime) -> None:
+    findings = check_maintenance(make_snapshot(maintenances=[make_maintenance()]), now)
+
+    assert findings[0].severity == Severity.INFO
+    assert "Replaced the RFID reader" in findings[0].evidence

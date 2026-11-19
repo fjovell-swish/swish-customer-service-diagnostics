@@ -19,11 +19,11 @@
   .muted { color: var(--body-quiet-color); }
   .facts th { width: 14em; }
 </style>
-{% endblock %}
+{% endblock extrastyle %}
 
 {% block breadcrumbs %}
 <div class="breadcrumbs"><a href="{% url 'diagnose' %}">Charger diagnostics</a>{% if snapshot %} &rsaquo; {{ snapshot.charge_point.identity }}{% endif %}</div>
-{% endblock %}
+{% endblock breadcrumbs %}
 
 {% block content %}
 <form class="search" method="get" action="{% url 'diagnose' %}">
@@ -149,4 +149,4 @@
   });
 </script>
 {% endif %}
-{% endblock %}
+{% endblock content %}

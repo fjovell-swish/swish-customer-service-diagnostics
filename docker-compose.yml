@@ -1,0 +1,42 @@
+# Local stack.
+#   docker compose up -d postgres     # the database `DJANGO_SETTINGS_MODULE=config.settings.ci pytest` uses
+#   docker compose up --build web     # the production image on :8000, against that Postgres
+# The web service has no auth proxy in front of it and no proxy secret, so it trusts identity headers
+# as they come: send X-Forwarded-User and X-Forwarded-Groups: swish-support (a header-editing
+# browser extension or curl -H ...). Never run it like this anywhere else.
+name: swishdiag
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: swish
+      POSTGRES_USER: swish
+      POSTGRES_PASSWORD: swish
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U swish"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  web:
+    build:
+      context: .
+      dockerfile: deploy/web.Dockerfile
+    environment:
+      SECRET_KEY: compose-only-not-a-secret
+      DJANGO_ALLOWED_HOSTS: "*"
+      DJANGO_CSRF_TRUSTED_ORIGINS: "http://localhost:8000"
+      AUTH_PROXY_SECRET: ""
+      # Point at a real api-ocpp (read-only user) to look at real chargers.
+      OCPP_DATABASE_URL: ${OCPP_DATABASE_URL:-postgres://swish:swish@postgres:5432/swish}
+      OCPP_TENANTS: ${OCPP_TENANTS:-public}
+      LOG_FORMAT: plain
+      SENTRY_DSN: ""
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy

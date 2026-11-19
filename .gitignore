@@ -2,7 +2,11 @@
 __pycache__/
 *.pyc
 .env
-db.sqlite3
+*.sqlite3
+data/
 staticfiles/
+artifacts/
+.coverage
+coverage.json
 .pytest_cache/
-.ruff_cache/
+.mypy_cache/

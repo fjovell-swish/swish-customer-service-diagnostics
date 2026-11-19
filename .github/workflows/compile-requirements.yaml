@@ -1,0 +1,74 @@
+---
+name: Compile requirements
+
+# Recompiles the two hashed lockfiles from pyproject.toml and commits them. Runs on demand, and
+# automatically when pyproject.toml changes on main (so lockfiles never drift from the declaration).
+on:
+  workflow_dispatch:
+    inputs:
+      upgrade:
+        description: "Also upgrade all pins to the latest allowed versions"
+        type: boolean
+        default: false
+      upgrade_packages:
+        description: "Upgrade only these pins (space-separated names), e.g. 'django sentry-sdk'"
+        type: string
+        default: ""
+  push:
+    branches:
+      - "main"
+    paths:
+      - pyproject.toml
+
+permissions:
+  contents: write
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.ref_name }}
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.15"
+
+      - name: Compile lockfiles
+        env:
+          UPGRADE: ${{ inputs.upgrade && '--upgrade' || '' }}
+          UPGRADE_PACKAGES: ${{ inputs.upgrade_packages }}
+        run: |
+          set -o pipefail
+          pip install pip-tools 2>&1 | tee compile.log
+          for spec in "requirements.txt:" "test-requirements.txt:--extra=test"; do
+            out="${spec%%:*}"; extras="${spec#*:}"
+            # --upgrade-package adds a package it does not find to the file, so only name the
+            # packages this lockfile already pins (keeps test tools out of the runtime image).
+            selected=""
+            for pkg in $UPGRADE_PACKAGES; do
+              if grep -qi "^${pkg}==" "$out"; then selected="$selected --upgrade-package $pkg"; fi
+            done
+            echo "== $out $selected" | tee -a compile.log
+            pip-compile --generate-hashes --strip-extras --allow-unsafe $UPGRADE $selected $extras \
+              --output-file="$out" pyproject.toml 2>&1 | tee -a compile.log
+          done
+
+      - name: Surface failures as annotations
+        if: failure()
+        shell: python
+        run: |
+          lines = [l.replace("\r", "")[:1500] for l in open("compile.log", errors="replace").read().splitlines()]
+          tail = [l for l in lines if l.strip()][-60:]
+          for i in range(0, len(tail), 30):
+              print("::error title=pip-compile::" + "%0A".join(tail[i:i + 30]))
+
+      - name: Commit lockfiles
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add requirements.txt test-requirements.txt
+          git diff --cached --quiet && echo "lockfiles unchanged" && exit 0
+          git commit -m "Compile requirements from pyproject.toml"
+          git push

@@ -1,0 +1,66 @@
+---
+name: Build Docker Image
+
+on:
+  push:
+    paths:
+      - deploy/*.Dockerfile
+      - deploy/entrypoints/**
+      - requirements.txt
+      - .dockerignore
+    branches:
+      - "main"
+  pull_request:
+    paths:
+      - deploy/*.Dockerfile
+      - deploy/entrypoints/**
+      - requirements.txt
+      - .dockerignore
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build image
+        run: |
+          set -o pipefail
+          docker build -f deploy/web.Dockerfile -t swishdiag-web:ci . 2>&1 | tee build-web.log
+
+      - name: Surface failures as annotations
+        if: failure()
+        shell: python
+        run: |
+          import glob
+          for f in sorted(glob.glob("build-*.log")):
+              lines = [l.replace("\r", "")[:240] for l in open(f, errors="replace").read().splitlines()]
+              msg = "%0A".join(lines[-40:])
+              print(f"::error title={f}::{msg[:3800]}")
+
+      - name: Image runs as non-root
+        run: |
+          u=$(docker run --rm --entrypoint id swishdiag-web:ci -u)
+          [ "$u" = "1000" ] || { echo "swishdiag-web runs as uid $u"; exit 1; }
+
+      - name: Image passes Django's deployment checks
+        run: |
+          docker run --rm \
+            -e SECRET_KEY="$(python3 -c 'import secrets; print(secrets.token_urlsafe(50))')" \
+            -e DJANGO_ALLOWED_HOSTS=diagnostics.example -e AUTH_PROXY_SECRET=ci \
+            -e OCPP_DATABASE_URL=postgres://ci:ci@localhost/ci -e OCPP_TENANTS=public \
+            swishdiag-web:ci python manage.py check --deploy --fail-level WARNING --database default
+
+      - name: Image serves /healthz
+        run: |
+          docker run -d --name web -p 8000:8000 \
+            -e SECRET_KEY=ci -e DJANGO_ALLOWED_HOSTS=localhost -e AUTH_PROXY_SECRET=ci \
+            -e OCPP_DATABASE_URL=postgres://ci:ci@localhost/ci -e OCPP_TENANTS=public \
+            swishdiag-web:ci
+          for _ in $(seq 1 30); do curl -fsS http://localhost:8000/healthz && exit 0; sleep 1; done
+          docker logs web
+          exit 1

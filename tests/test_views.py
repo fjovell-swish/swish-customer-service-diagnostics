@@ -13,13 +13,17 @@ from services.ocpp.models import ChargePointV16
 
 
 @pytest.fixture
-def stub_lookup(monkeypatch: pytest.MonkeyPatch, make_snapshot: Callable[..., Snapshot]) -> Callable[..., None]:
+def stub_lookup(
+    monkeypatch: pytest.MonkeyPatch, make_snapshot: Callable[..., Snapshot]
+) -> Callable[..., None]:
     def install(matches: list[ChargerMatch]) -> None:
         monkeypatch.setattr(views, "find_chargers", lambda query: matches)
         monkeypatch.setattr(
             views,
             "collect",
-            lambda tenant, charge_point, now: make_snapshot(tenant=tenant, charge_point=charge_point),
+            lambda tenant, charge_point, now: make_snapshot(
+                tenant=tenant, charge_point=charge_point
+            ),
         )
 
     return install
@@ -48,9 +52,13 @@ def test_diagnose_no_match(admin_client: Client, stub_lookup: Callable[..., None
 
 
 def test_diagnose_several_matches_lists_them(
-    admin_client: Client, stub_lookup: Callable[..., None], make_charge_point: Callable[..., ChargePointV16]
+    admin_client: Client,
+    stub_lookup: Callable[..., None],
+    make_charge_point: Callable[..., ChargePointV16],
 ) -> None:
-    stub_lookup([ChargerMatch("public", make_charge_point()), ChargerMatch("eosgie", make_charge_point())])
+    stub_lookup(
+        [ChargerMatch("public", make_charge_point()), ChargerMatch("eosgie", make_charge_point())]
+    )
 
     response = admin_client.get(reverse("diagnose"), {"q": "CP001"})
 
@@ -59,9 +67,13 @@ def test_diagnose_several_matches_lists_them(
 
 
 def test_diagnose_tenant_narrows_matches(
-    admin_client: Client, stub_lookup: Callable[..., None], make_charge_point: Callable[..., ChargePointV16]
+    admin_client: Client,
+    stub_lookup: Callable[..., None],
+    make_charge_point: Callable[..., ChargePointV16],
 ) -> None:
-    stub_lookup([ChargerMatch("public", make_charge_point()), ChargerMatch("eosgie", make_charge_point())])
+    stub_lookup(
+        [ChargerMatch("public", make_charge_point()), ChargerMatch("eosgie", make_charge_point())]
+    )
 
     response = admin_client.get(reverse("diagnose"), {"q": "CP001", "tenant": "eosgie"})
 
@@ -69,7 +81,9 @@ def test_diagnose_tenant_narrows_matches(
 
 
 def test_diagnose_single_match_shows_findings(
-    admin_client: Client, stub_lookup: Callable[..., None], make_charge_point: Callable[..., ChargePointV16]
+    admin_client: Client,
+    stub_lookup: Callable[..., None],
+    make_charge_point: Callable[..., ChargePointV16],
 ) -> None:
     stub_lookup([ChargerMatch("public", make_charge_point(connected=False))])
 
@@ -96,5 +110,5 @@ def test_router_migrates_own_tables_on_default_only() -> None:
     assert router.allow_migrate("ocpp_public", "auth") is False
 
 
-def test_healthcheck(client: Client) -> None:
-    assert client.get(reverse("healthcheck")).json() == {"status": "ok"}
+def test_healthz(client: Client) -> None:
+    assert client.get(reverse("healthz")).json() == {"status": "ok"}

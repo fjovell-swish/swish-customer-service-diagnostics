@@ -9,7 +9,8 @@ OCPP_APP_LABEL = "ocpp"
 class ServiceRouter:
     """Keep api-ocpp models off `default` and never migrate them.
 
-    Diagnostics pick the tenant alias explicitly with `.using()`; the first tenant is only a fallback.
+    Diagnostics pick the tenant alias explicitly with `.using()`; the first tenant is only a
+    fallback.
     """
 
     def db_for_read(self, model: type[Model], **hints: Any) -> str | None:
@@ -20,7 +21,9 @@ class ServiceRouter:
     def db_for_write(self, model: type[Model], **hints: Any) -> str | None:
         return self.db_for_read(model, **hints)
 
-    def allow_migrate(self, db: str, app_label: str, model_name: str | None = None, **hints: Any) -> bool:
+    def allow_migrate(
+        self, db: str, app_label: str, model_name: str | None = None, **hints: Any
+    ) -> bool:
         # api-ocpp's schemas belong to api-ocpp (Alembic), never to this app.
         if app_label == OCPP_APP_LABEL:
             return False

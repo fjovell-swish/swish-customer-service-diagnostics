@@ -34,20 +34,45 @@ functions over a `Snapshot` (`diagnostics/snapshot.py`), so adding one is just a
 
 ## Running locally
 
+Python 3.15. Nothing else is needed: the local settings are hard-coded (SQLite, DEBUG on).
+
 ```bash
-cp .env.example .env    # OCPP_DATABASE_URL and OCPP_TENANTS at least
-set -a; . ./.env; set +a
-uv sync
-uv run python manage.py migrate          # this app's own tables (users, sessions) only
-uv run python manage.py createsuperuser
-uv run python manage.py runserver        # http://localhost:8000/
+python3.15 -m venv .venv && . .venv/bin/activate
+pip install -r test-requirements.txt
+python manage.py migrate                 # this app's own tables (users) only
+python manage.py createsuperuser
+python manage.py runserver               # http://localhost:8000/
 ```
 
-Support users log in through the Django admin login and need `is_staff`. Manage them at `/admin/`.
+Without `OCPP_DATABASE_URL` every tenant is an empty local SQLite file, so searches find nothing.
+To look at real chargers, point it at an environment's api-ocpp through a **read-only** user:
 
-Connections to api-ocpp are opened with `default_transaction_read_only=on` and the models are
-unmanaged, so this app can't write to or migrate api-ocpp. Use a read-only database user in
-production anyway.
+```bash
+OCPP_DATABASE_URL=postgres://readonly:...@host:5432/ocpp OCPP_TENANTS=public,eosgie python manage.py runserver
+```
+
+`docker compose up --build web` runs the production image locally (see docker-compose.yml).
+
+## Signing in
+
+In deployed environments support staff sign in to the user service at an **auth proxy** in front
+of the app, as for central-system-new-world's read-only admin (`config/auth_proxy.py`). The proxy
+forwards `X-Forwarded-User`, `X-Forwarded-Groups` and a shared secret (`X-Proxy-Secret`); members
+of `AUTH_PROXY_ALLOWED_GROUPS` (default `swish-support,swish-ops`) get in, are re-checked on every
+request, and no password is stored. Locally the Django login form works too.
+
+## Read-only on api-ocpp
+
+The api-ocpp models are unmanaged and never migrated (`config/routers.py`), and in deployed
+environments every api-ocpp connection runs read-only transactions
+(`default_transaction_read_only=on`): a write fails with "cannot execute UPDATE in a read-only
+transaction". Use a database user with `SELECT` only anyway.
+
+## Settings
+
+`config/settings/`: `base.py` (shared), `local.py` (default for `manage.py` and pytest),
+`ci.py` (GitHub Actions' Postgres service), `production.py` (default for wsgi; every value from the
+environment, required ones listed at the top of the file).
 
 ## The api-ocpp models
 
@@ -56,10 +81,10 @@ api-ocpp's schema changes (an Alembic migration), regenerate it against any envi
 reach read-only:
 
 ```bash
-set -a; . ./.env; set +a                     # OCPP_DATABASE_URL / OCPP_TENANTS of that environment
-uv run python manage.py regenerate_ocpp_models                       # introspects the first tenant
-uv run python manage.py regenerate_ocpp_models --database ocpp_eosgie  # or a given tenant
-git diff services/ocpp/models.py             # review, then run the tests
+export OCPP_DATABASE_URL=postgres://readonly:...@host:5432/ocpp OCPP_TENANTS=public,eosgie
+python manage.py regenerate_ocpp_models                          # introspects the first tenant
+python manage.py regenerate_ocpp_models --database ocpp_eosgie   # or a given tenant
+git diff services/ocpp/models.py                                 # review, then run the tests
 ```
 
 On top of plain `inspectdb`, the command (`services/ocpp/management/commands/regenerate_ocpp_models.py`):
@@ -75,7 +100,52 @@ All tenants share the same schema, so introspecting one is enough. `tsvector` se
 
 ## Development
 
+The same tooling as central-system-new-world:
+
 ```bash
-uv run pytest                       # tests, no external services needed
-uv run pre-commit run --all-files   # lint
+python -m pytest -n 4                                  # SQLite, no services (Postgres-only tests skip)
+docker compose up -d postgres
+DJANGO_SETTINGS_MODULE=config.settings.ci python -m pytest -n 4 --cov   # Postgres, 100% coverage
+mypy                                                   # strict
+pre-commit run --all-files                             # black, isort, flake8, djade, shellcheck, ...
+scripts/compile-requirements.sh                        # after changing dependencies in pyproject.toml
 ```
+
+Dependencies are declared in `pyproject.toml` and locked with hashes in `requirements.txt`
+(runtime image) and `test-requirements.txt` (everything else). Tests use api-ocpp's real tables:
+they're created from the generated models in every tenant's test database (`ocpp_tables` fixture).
+
+CI (`.github/workflows/`):
+
+| Workflow | Runs |
+| --- | --- |
+| Run tests | pytest on SQLite (twice: fixed and random order), and on Postgres with 100% coverage + `makemigrations --check` |
+| Pre Commit | every hook on every file |
+| Type check | `mypy` (strict) |
+| Build Docker Image | builds `deploy/web.Dockerfile`, checks it runs as uid 1000, passes `check --deploy` and serves `/healthz` |
+| Terraform | `terraform fmt -check` and `validate` |
+| Compile requirements | recompiles the lockfiles when `pyproject.toml` changes on main, or on demand (`upgrade`) |
+| Deploy | on a `vX.Y.Z` tag: build once, deploy to staging, promote the same image to production |
+
+## Deployment
+
+Azure Container Apps, with Terraform in `deploy/terraform/` (first-time setup in its README) and
+scripts in `deploy/scripts/`. Releases are tags:
+
+```bash
+git tag v1.0.0 && git push origin v1.0.0     # staging, then production after approval
+```
+
+| Script | Does |
+| --- | --- |
+| `bootstrap.sh <env>` | first-time creation of an environment |
+| `deploy.sh <env> [--tag T] [--plan]` | build+push (unless `--tag`), `terraform apply`, health check |
+| `promote.sh <from> <to> <tag>` | copy an image between registries by digest, no rebuild |
+| `rollback.sh <env> <tag>` | redeploy a previous tag |
+| `health.sh <env>` | `/healthz`, `check --deploy`, and a read of api-ocpp from inside the app |
+| `manage.sh <env> <command>` | any `manage.py` command in the running container |
+| `logs.sh <env>` | follow the app's logs |
+
+The app needs network access to the environment's api-ocpp Postgres: allow the app's outbound IPs
+(`terraform output outbound_ip_addresses`) in its firewall, or put the app on a VNet that reaches it
+(`infrastructure_subnet_id`).

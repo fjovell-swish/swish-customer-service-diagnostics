@@ -1,0 +1,144 @@
+---
+name: Run tests
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - "main"
+  pull_request:  # every PR, stacked ones included (their base is another PR's branch)
+
+jobs:
+  tests-local:
+    # What a developer runs: `pytest -n 4` with the default (local) settings, SQLite, no services.
+    # Postgres-only tests skip here; coverage is enforced by the job below.
+    name: tests (local settings, pytest -n 4)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.15"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r test-requirements.txt
+
+      - name: Run Tests
+        run: |
+          set -o pipefail
+          python -m pytest -n 4 -p no:randomly -ra 2>&1 | tee artifacts-pytest.log
+          python -m pytest -n 4 -ra 2>&1 | tee -a artifacts-pytest.log
+
+      - name: Surface failures as annotations
+        if: failure()
+        shell: python
+        run: |
+          import re
+          lines = [l.replace("\r", "")[:240] for l in open("artifacts-pytest.log", errors="replace").read().splitlines()]
+          keep = [l for l in lines if not re.match(r"^(\d{4}-\d\d-\d\d .*|INFO |DEBUG |WARNING )", l)]
+          starts = [i for i, l in enumerate(keep) if re.match(r"^=+ (FAILURES|ERRORS) =+$", l)]
+          keep = keep[starts[0]:] if starts else keep
+          chunk, n = [], 0
+          for l in keep[-400:]:
+              if sum(len(x) + 3 for x in chunk) + len(l) > 3600:
+                  n += 1
+                  print(f"::error title=local pytest {n:02d}::{'%0A'.join(chunk)}")
+                  chunk = []
+              chunk.append(l)
+          print(f"::error title=local pytest {n + 1:02d}::{'%0A'.join(chunk)}")
+
+  tests:
+    name: tests (Postgres, pytest -n 4, 100% coverage)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: swish
+          POSTGRES_USER: swish
+          POSTGRES_PASSWORD: swish
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U swish"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DJANGO_SETTINGS_MODULE: config.settings.ci
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.15"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          set -o pipefail
+          pip install -r test-requirements.txt 2>&1 | tee artifacts-install.log
+          pip install setuptools
+
+      - name: Check migrations are committed
+        run: python manage.py makemigrations --check --dry-run 2>&1 | tee artifacts-migrations.log
+
+      - name: Run Tests
+        run: |
+          set -o pipefail
+          python -m pytest -n 4 --cov --cov-report term-missing -ra 2>&1 | tee artifacts-pytest.log
+
+      - name: Coverage gaps
+        if: always()
+        shell: python
+        run: |
+          import json, os, subprocess
+          if os.path.exists(".coverage"):
+              subprocess.run(["python", "-m", "coverage", "json", "-q", "-o", "coverage.json"], check=False)
+          if os.path.exists("coverage.json"):
+              files = json.load(open("coverage.json"))["files"]
+              rows = []
+              for path, f in sorted(files.items()):
+                  lines = f["missing_lines"]
+                  branches = [f"{a}->{b if b > 0 else 'exit'}" for a, b in f.get("missing_branches", [])]
+                  if lines or branches:
+                      rows.append(f"{path}: lines {lines} branches {branches}")
+              chunk = []
+              for r in rows + ["(end)"]:
+                  if sum(len(x) + 3 for x in chunk) + len(r) > 3600:
+                      print("::warning title=coverage gaps::" + "%0A".join(chunk))
+                      chunk = []
+                  chunk.append(r)
+              print("::warning title=coverage gaps::" + "%0A".join(chunk))
+
+      - name: Surface failures as annotations
+        if: failure()
+        shell: python
+        run: |
+          import glob
+          import re
+          for f in sorted(glob.glob("artifacts-*.log")):
+              lines = [l.replace("\r", "")[:240] for l in open(f, errors="replace").read().splitlines()]
+              # pytest: the failure details and the short summary matter, not the captured log noise
+              keep = [l for l in lines if not re.match(r"^(\d{4}-\d\d-\d\d .*|INFO |DEBUG |WARNING )", l)]
+              starts = [i for i, l in enumerate(keep) if re.match(r"^=+ (FAILURES|ERRORS) =+$", l)]
+              if starts:
+                  keep = keep[starts[0]:]
+              chunk, n = [], 0
+              for l in keep[-400:]:
+                  if sum(len(x) + 3 for x in chunk) + len(l) > 3600:
+                      n += 1
+                      print(f"::error title={f} {n:02d}::{'%0A'.join(chunk)}")
+                      chunk = []
+                  chunk.append(l)
+              n += 1
+              print(f"::error title={f} {n:02d}::{'%0A'.join(chunk)}")

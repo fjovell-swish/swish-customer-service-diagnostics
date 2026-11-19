@@ -1,0 +1,4 @@
+[flake8]
+exclude = artifacts/,.venv/,services/ocpp/models.py
+max-line-length = 99
+ignore = W503

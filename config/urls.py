@@ -11,12 +11,12 @@ admin.site.site_title = "Swish charger diagnostics"
 admin.site.index_title = "Support users"
 
 
-def healthcheck(request: HttpRequest) -> HttpResponse:
+def healthz(request: HttpRequest) -> HttpResponse:
     return JsonResponse({"status": "ok"})
 
 
 urlpatterns = [
-    path("healthcheck", healthcheck, name="healthcheck"),
+    path("healthz", healthz, name="healthz"),
     path("", admin.site.admin_view(diagnose), name="diagnose"),
     path("admin/", admin.site.urls),
 ]

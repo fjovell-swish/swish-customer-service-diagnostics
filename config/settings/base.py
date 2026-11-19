@@ -1,0 +1,149 @@
+"""
+Settings shared by every environment. Nothing here depends on the environment: no DEBUG, no
+SECRET_KEY, no databases, no hosts. Those live in local.py, ci.py and production.py, which import
+this module with `from config.settings.base import *`.
+"""
+
+import os
+from pathlib import Path
+from typing import Any
+
+import dj_database_url
+import django_stubs_ext
+
+# Lets the generic forms used for type checking (QuerySet[M], ...) be written in code without
+# breaking at runtime; django-stubs' documented approach.
+django_stubs_ext.monkeypatch()
+
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")  # TLS ends at the ingress
+USE_X_FORWARDED_HOST = True
+
+
+def env_list(name: str, default: str = "") -> list[str]:
+    return [item.strip() for item in os.environ.get(name, default).split(",") if item.strip()]
+
+
+INSTALLED_APPS = [
+    # The admin is only used for its look and its login page (locally); no model is registered.
+    "django.contrib.admin",
+    "django.contrib.auth",
+    "django.contrib.contenttypes",
+    "django.contrib.sessions",
+    "django.contrib.messages",
+    "django.contrib.staticfiles",
+    "services.ocpp",
+    "diagnostics",
+]
+
+MIDDLEWARE = [
+    "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
+    "django.contrib.sessions.middleware.SessionMiddleware",
+    "django.middleware.common.CommonMiddleware",
+    "django.middleware.csrf.CsrfViewMiddleware",
+    "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "config.auth_proxy.ProxyHeaderMiddleware",
+    "django.contrib.messages.middleware.MessageMiddleware",
+    "django.middleware.clickjacking.XFrameOptionsMiddleware",
+]
+
+# Support staff sign in to the user service at the auth proxy in front of this app; Django trusts
+# the headers it forwards, only with the proxy's secret, and only for the allowed groups
+# (config/auth_proxy.py). local.py adds the password login for development.
+AUTHENTICATION_BACKENDS = ["config.auth_proxy.GroupRemoteUserBackend"]
+AUTH_PROXY: dict[str, Any] = {
+    "USER_HEADER": os.environ.get("AUTH_PROXY_USER_HEADER", "X-Forwarded-User"),
+    "GROUPS_HEADER": os.environ.get("AUTH_PROXY_GROUPS_HEADER", "X-Forwarded-Groups"),
+    "ALLOWED_GROUPS": env_list("AUTH_PROXY_ALLOWED_GROUPS", "swish-support,swish-ops"),
+    "PROXY_SECRET_HEADER": os.environ.get("AUTH_PROXY_SECRET_HEADER", "X-Proxy-Secret"),
+    "PROXY_SECRET": "",
+}
+# Sessions live in the signed cookie: every replica serves every request without a shared database.
+SESSION_ENGINE = "django.contrib.sessions.backends.signed_cookies"
+
+ROOT_URLCONF = "config.urls"
+WSGI_APPLICATION = "config.wsgi.application"
+
+TEMPLATES = [
+    {
+        "BACKEND": "django.template.backends.django.DjangoTemplates",
+        "APP_DIRS": True,
+        "OPTIONS": {
+            "context_processors": [
+                "django.template.context_processors.request",
+                "django.contrib.auth.context_processors.auth",
+                "django.contrib.messages.context_processors.messages",
+            ],
+        },
+    },
+]
+
+# --- api-ocpp -------------------------------------------------------------------------------
+# api-ocpp keeps one Postgres schema per tenant, so every tenant gets its own alias
+# ("ocpp_<tenant>"). A charger lookup searches all of them, since support rarely knows the tenant.
+# Each environment builds the aliases with ocpp_databases().
+OCPP_TENANTS = env_list("OCPP_TENANTS", "public")
+DATABASE_ROUTERS = ["config.routers.ServiceRouter"]
+
+
+def ocpp_databases(
+    url: str, tenants: list[str], read_only: bool, test_names: bool = False
+) -> dict[str, dict[str, Any]]:
+    """One alias per tenant on api-ocpp's database, pinned to that tenant's schema."""
+    databases = {}
+    for tenant in tenants:
+        config: dict[str, Any] = dict(
+            dj_database_url.parse(url, conn_max_age=60, conn_health_checks=True)
+        )
+        # In a fresh test database the tenant's schema doesn't exist yet, so Django's own
+        # bookkeeping (django_migrations) goes to `public`; api-ocpp's tables go to the tenant.
+        search_path = f"{tenant},public" if test_names else tenant
+        options = [f"-c search_path={search_path}"]
+        if read_only:
+            options.append("-c default_transaction_read_only=on")
+        config["OPTIONS"] = {"options": " ".join(options)}
+        if test_names:
+            # Every alias would otherwise create the same test database.
+            config["TEST"] = {"NAME": f"test_ocpp_{tenant}"}
+        databases[f"ocpp_{tenant}"] = config
+    return databases
+
+
+LANGUAGE_CODE = "en-us"
+TIME_ZONE = "Europe/Paris"
+USE_I18N = True
+USE_TZ = True
+
+STATIC_URL = "static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
+# Hashed, compressed files served by WhiteNoise after `collectstatic` (the image does it).
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
+}
+
+LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO")
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "plain": {"format": "%(asctime)s %(levelname)-7s %(name)s %(message)s"},
+        "json": {"()": "config.logging.JsonFormatter"},
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": os.environ.get("LOG_FORMAT", "plain"),
+        }
+    },
+    "root": {"handlers": ["console"], "level": LOG_LEVEL},
+    "loggers": {
+        "django": {"level": "WARNING"},
+        "django.request": {"level": "ERROR"},  # 5xx only: Django logs 4xx as WARNING
+        "django.db.backends": {"level": "WARNING"},
+        "django.security.DisallowedHost": {"level": "ERROR"},
+        "gunicorn.access": {"level": "WARNING"},  # access log via --access-logfile is enough
+        "psycopg": {"level": "WARNING"},
+    },
+}

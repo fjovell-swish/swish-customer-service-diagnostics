@@ -2,35 +2,79 @@
 name = "swish-customer-service-diagnostics"
 version = "0.1.0"
 description = "Diagnose \"the charger doesn't work\" from the live central system's data"
-requires-python = ">=3.11"
+readme = "README.md"
+requires-python = ">=3.15"
 dependencies = [
-    "dj-database-url>=3.1.2",
-    "django>=5.2,<5.3",
-    "gunicorn>=27.0.1",
+    "Django>=6.1,<6.2",
+    "dj-database-url>=3.1",
     "psycopg[binary]>=3.2",
-    "sentry-sdk[django]>=2.75.0",
-    "whitenoise>=6.12.0",
+    "gunicorn>=23",
+    "whitenoise>=6",
+    "sentry-sdk[django]>=2.0",
+    "django-stubs-ext>=5.0",
 ]
 
-[dependency-groups]
-dev = [
-    "pre-commit>=4.7.0",
-    "pytest>=9.2.0",
-    "pytest-django>=4.14.0",
-    "ruff>=0.17.5",
+[project.optional-dependencies]
+# Tests, linters and developer tooling. Never installed in the runtime image.
+test = [
+    "covdefaults",
+    "pytest",
+    "pytest-cov",
+    "pytest-django",
+    "pytest-randomly",
+    "pytest-xdist",
+    "time-machine",
+    "django-stubs[compatible-mypy]",
+    "pip-tools",
 ]
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages]
+find = { include = ["config*", "diagnostics*", "services*"] }
+
+[tool.isort]
+profile = "black"
+line_length = 99
+force_single_line = true
+known_first_party = ["config", "diagnostics", "services"]
+skip_glob = ["services/*/models.py"]
+
+[tool.autoflake]
+recursive = true
+
+[tool.mypy]
+# `mypy` with no arguments checks the whole project in strict mode (the "Type check" workflow).
+files = ["config", "diagnostics", "services", "manage.py"]
+strict = true
+python_version = "3.15"
+plugins = ["mypy_django_plugin.main"]
+warn_unreachable = true
+show_error_codes = true
+pretty = false
+
+[tool.django-stubs]
+django_settings_module = "config.settings.local"
+strict_settings = false
 
 [tool.pytest.ini_options]
-DJANGO_SETTINGS_MODULE = "config.settings_test"
+DJANGO_SETTINGS_MODULE = "config.settings.local"
+testpaths = ["tests"]
 python_files = ["test_*.py"]
-addopts = "-p no:cacheprovider"
-# Tests run without collectstatic, so whitenoise has no STATIC_ROOT to serve.
+addopts = "-ra"
+markers = [
+    "postgres: needs Postgres (introspection of its catalogs); skipped on SQLite",
+]
+# The runtime image collects static files; tests serve them from the apps' own directories.
 filterwarnings = ["ignore:No directory at:UserWarning"]
 
-[tool.ruff]
-line-length = 120
-target-version = "py311"
-extend-exclude = ["services/*/models.py"]
+[tool.coverage.run]
+plugins = ["covdefaults"]
+source = ["config", "diagnostics", "services", "tests"]
+# Everything is measured except the generated api-ocpp models; covdefaults sets fail_under = 100.
+omit = ["services/ocpp/models.py"]
 
-[tool.ruff.lint]
-select = ["E", "F", "W", "B", "UP", "DJ"]
+[tool.coverage.html]
+directory = "artifacts/htmlcov/"
