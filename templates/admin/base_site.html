@@ -1,0 +1,41 @@
+{% extends "admin/base.html" %}
+
+{% block title %}{% if subtitle %}{{ subtitle }} | {% endif %}{{ title }} | {{ site_title|default:_('Django site admin') }}{% endblock %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+  .tenant-switch { display: inline-flex; align-items: center; gap: .4em; margin-right: 1em; }
+  .tenant-switch select { padding: 2px 4px; }
+</style>
+{% endblock extrastyle %}
+
+{% block branding %}
+<div id="site-name"><a href="{% url 'admin:index' %}">{{ site_header|default:_('Django administration') }}</a></div>
+{% if user.is_anonymous %}{% include "admin/color_theme_toggle.html" %}{% endif %}
+{% endblock branding %}
+
+{% block usertools %}
+{% if has_permission %}
+<div id="user-tools">
+  {% if can_query_data and ocpp_tenants|length > 1 %}
+  <form class="tenant-switch" method="post" action="{% url 'switch-tenant' %}">
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+    <label for="tenant-select">api-ocpp tenant</label>
+    <select id="tenant-select" name="tenant" onchange="this.form.submit()">
+      {% for tenant in ocpp_tenants %}
+      <option value="{{ tenant }}"{% if tenant == ocpp_current_tenant %} selected{% endif %}>{{ tenant }}</option>
+      {% endfor %}
+    </select>
+  </form>
+  {% endif %}
+  {% if can_handle_cases %}<a href="{% url 'start' %}">Diagnostics</a> /{% endif %}
+  {% if can_query_data %}<a href="{% url 'deployment-status' %}">Deployments</a> /{% endif %}
+  {% block welcome-msg %}{{ block.super }}{% endblock %}
+  {% block userlinks %}{{ block.super }}{% endblock %}
+</div>
+{% endif %}
+{% endblock usertools %}
+
+{% block nav-global %}{% endblock %}

@@ -9,6 +9,7 @@ last question is answered.
 """
 
 from django.contrib import admin
+from django.core.exceptions import PermissionDenied
 from django.http import Http404
 from django.http import HttpRequest
 from django.http import HttpResponse
@@ -18,6 +19,10 @@ from django.shortcuts import redirect
 from django.template.response import TemplateResponse
 from django.utils import timezone
 
+from config.roles import DATA
+from config.roles import SUPPORT
+from config.roles import has_role
+from config.roles import role_required
 from diagnostics.checks import run_checks
 from diagnostics.checks import verdict
 from diagnostics.forms import AnswerForm
@@ -38,6 +43,11 @@ RECENT_CASES = 20
 
 
 def start(request: HttpRequest) -> HttpResponse:
+    # The site's home page: people who only query the data land on the admin's tables.
+    if not has_role(request.user, SUPPORT):
+        if has_role(request.user, DATA):
+            return redirect("admin:index")
+        raise PermissionDenied("Needs the support or the data role.")
     if request.method == "POST":
         form = StartForm(request.POST)
         if form.is_valid():
@@ -58,6 +68,7 @@ def start(request: HttpRequest) -> HttpResponse:
     return TemplateResponse(request, "diagnostics/start.html", context)
 
 
+@role_required(SUPPORT)
 def case_detail(request: HttpRequest, pk: int) -> HttpResponse:
     case = get_object_or_404(Case, pk=pk)
     charge_point = (

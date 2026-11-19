@@ -8,7 +8,8 @@ min_replicas = 1
 max_replicas = 1
 
 # custom_domain = "diagnostics-staging.swish.example"
-allowed_groups = ["swish-support", "swish-ops"]
+data_groups    = ["swish-data", "swish-ops"]
+support_groups = ["swish-support", "swish-ops"]
 
 # api-ocpp's TENANT_SCHEMAS on staging (central-system maps every staging host to public). The read-only connection URL comes from the pipeline's
 # secret (TF_VAR_ocpp_database_url), never from this file.

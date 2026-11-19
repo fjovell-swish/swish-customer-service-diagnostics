@@ -1,6 +1,8 @@
 from django.contrib import admin
 from django.http import HttpRequest
 
+from config.roles import SUPPORT
+from config.roles import has_role
 from diagnostics.models import Case
 
 
@@ -47,6 +49,17 @@ class CaseAdmin(admin.ModelAdmin[Case]):
         "summary",
         "answers",
     ]
+
+    # The `support` role sees the history and can update a case's status and ticket; deleting
+    # stays with superusers (Django's model permissions).
+    def has_module_permission(self, request: HttpRequest) -> bool:
+        return has_role(request.user, SUPPORT)
+
+    def has_view_permission(self, request: HttpRequest, obj: Case | None = None) -> bool:
+        return has_role(request.user, SUPPORT)
+
+    def has_change_permission(self, request: HttpRequest, obj: Case | None = None) -> bool:
+        return has_role(request.user, SUPPORT)
 
     def has_add_permission(self, request: HttpRequest) -> bool:
         return False

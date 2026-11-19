@@ -71,7 +71,7 @@ Python 3.15. Nothing else is needed: the local settings are hard-coded (SQLite, 
 python3.15 -m venv .venv && . .venv/bin/activate
 pip install -r test-requirements.txt
 python manage.py migrate                 # this app's own tables (cases, users) only
-python manage.py seed_fake_data          # fake chargers, and the user support / support
+python manage.py seed_fake_data          # fake chargers, and users support, data, admin (password = name)
 python manage.py runserver               # http://localhost:8000/, search "SEED"
 ```
 
@@ -106,13 +106,24 @@ OCPP_DATABASE_URL=postgres://readonly:...@host:5432/ocpp OCPP_TENANTS=public,eos
 `docker compose up --build web` runs the production image locally, migrated, on the compose
 Postgres (see docker-compose.yml).
 
-## Signing in
+## Signing in, and the two ways in
 
-In deployed environments support staff sign in to the user service at an **auth proxy** in front
-of the app, as for central-system-new-world's read-only admin (`config/auth_proxy.py`). The proxy
-forwards `X-Forwarded-User`, `X-Forwarded-Groups` and a shared secret (`X-Proxy-Secret`); members
-of `AUTH_PROXY_ALLOWED_GROUPS` (default `swish-support,swish-ops`) get in, are re-checked on every
-request, and no password is stored. Locally the Django login form works too.
+Two roles (`config/roles.py`), and someone can have both:
+
+| Role | Gets | Granted by (proxy groups) |
+| --- | --- | --- |
+| `support` (customer service) | the diagnostics workflow (`/`) and the case history | `AUTH_PROXY_SUPPORT_GROUPS`, default `swish-support,swish-ops` |
+| `data` (query the data) | every service table in the admin, read-only, with the tenant switcher, and the deployments page | `AUTH_PROXY_DATA_GROUPS`, default `swish-data,swish-ops` |
+
+`/` lands people with only `data` on the admin's tables. Each role sees only its part of the admin
+index and header.
+
+In deployed environments people sign in to the user service at an **auth proxy** in front of the
+app, as for central-system-new-world's read-only admin (`config/auth_proxy.py`). The proxy
+forwards `X-Forwarded-User`, `X-Forwarded-Groups` and a shared secret (`X-Proxy-Secret`); a user's
+roles follow their groups on every request (losing every role signs them out), and no password is
+stored. Locally the Django login form works too, and roles are the Django groups `data` and
+`support`: `seed_fake_data` creates `support`, `data` and `admin` (superuser: both).
 
 ## Read-only on api-ocpp
 

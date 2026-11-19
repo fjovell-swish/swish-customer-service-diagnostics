@@ -1,7 +1,8 @@
 from typing import Any
 
-from django.conf import settings
 from django.db.models import Model
+
+from config.tenancy import get_current_tenant
 
 OCPP_APP_LABEL = "ocpp"
 
@@ -9,13 +10,13 @@ OCPP_APP_LABEL = "ocpp"
 class ServiceRouter:
     """Keep api-ocpp models off `default` and never migrate them.
 
-    Diagnostics pick the tenant alias explicitly with `.using()`; the first tenant is only a
-    fallback.
+    Without `.using()`, api-ocpp queries go to the tenant chosen in the admin's header
+    (config/tenancy.py; the first tenant outside a request). Diagnostics always pass `.using()`.
     """
 
     def db_for_read(self, model: type[Model], **hints: Any) -> str | None:
         if model._meta.app_label == OCPP_APP_LABEL:
-            return f"ocpp_{settings.OCPP_TENANTS[0]}"
+            return f"ocpp_{get_current_tenant()}"
         return None
 
     def db_for_write(self, model: type[Model], **hints: Any) -> str | None:

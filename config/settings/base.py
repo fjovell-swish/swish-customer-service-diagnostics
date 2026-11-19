@@ -34,6 +34,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "services.ocpp",
     "diagnostics",
+    "deployments",
 ]
 
 MIDDLEWARE = [
@@ -44,18 +45,23 @@ MIDDLEWARE = [
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "config.auth_proxy.ProxyHeaderMiddleware",
+    "config.tenancy.TenantMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
-# Support staff sign in to the user service at the auth proxy in front of this app; Django trusts
-# the headers it forwards, only with the proxy's secret, and only for the allowed groups
-# (config/auth_proxy.py). local.py adds the password login for development.
+# Staff sign in to the user service at the auth proxy in front of this app; Django trusts the
+# headers it forwards, only with the proxy's secret, and only for groups that grant a role
+# (config/auth_proxy.py, config/roles.py). local.py adds the password login for development.
 AUTHENTICATION_BACKENDS = ["config.auth_proxy.GroupRemoteUserBackend"]
 AUTH_PROXY: dict[str, Any] = {
     "USER_HEADER": os.environ.get("AUTH_PROXY_USER_HEADER", "X-Forwarded-User"),
     "GROUPS_HEADER": os.environ.get("AUTH_PROXY_GROUPS_HEADER", "X-Forwarded-Groups"),
-    "ALLOWED_GROUPS": env_list("AUTH_PROXY_ALLOWED_GROUPS", "swish-support,swish-ops"),
+    # The user service's groups that grant each role (config/roles.py); anyone else is refused.
+    "ROLE_GROUPS": {
+        "data": env_list("AUTH_PROXY_DATA_GROUPS", "swish-data,swish-ops"),
+        "support": env_list("AUTH_PROXY_SUPPORT_GROUPS", "swish-support,swish-ops"),
+    },
     "PROXY_SECRET_HEADER": os.environ.get("AUTH_PROXY_SECRET_HEADER", "X-Proxy-Secret"),
     "PROXY_SECRET": "",
 }
@@ -68,12 +74,15 @@ WSGI_APPLICATION = "config.wsgi.application"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
+        # templates/admin/base_site.html: the header's tenant switcher, over the admin's own.
+        "DIRS": [BASE_DIR / "templates"],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "config.context_processors.navigation",
             ],
         },
     },
@@ -109,6 +118,25 @@ def ocpp_databases(
         databases[f"ocpp_{tenant}"] = config
     return databases
 
+
+# --- Deployments page (deployments/, ported from swish-admin) ----------------------------------
+# GitHub: read access to Actions and contents of the service repos. Kubernetes: a kubeconfig file
+# per cluster, matching the kubeconfig secrets the services' CI uses; a cluster without one shows
+# as "unknown".
+GITHUB_API_URL = os.environ.get("GITHUB_API_URL", "https://api.github.com")
+GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
+GITHUB_ORG = os.environ.get("GITHUB_ORG", "swish-charge")
+KUBECONFIGS: dict[str, str] = {
+    cluster: path
+    for cluster, path in {
+        "staging": os.environ.get("KUBECONFIG_STAGING", ""),
+        "production": os.environ.get("KUBECONFIG_PRODUCTION", ""),
+        "csms-production": os.environ.get("KUBECONFIG_CSMS_PRODUCTION", ""),
+    }.items()
+    if path
+}
+DEPLOYMENT_STATUS_CACHE_SECONDS = int(os.environ.get("DEPLOYMENT_STATUS_CACHE_SECONDS", "60"))
+CACHES = {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}}
 
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "Europe/Paris"

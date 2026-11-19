@@ -38,10 +38,30 @@ variable "custom_domain" {
   default     = ""
 }
 
-variable "allowed_groups" {
-  description = "Groups (from the auth proxy's groups header) allowed in"
+variable "data_groups" {
+  description = "Groups (the auth proxy's groups header) that may query the data: tables and deployments"
+  type        = list(string)
+  default     = ["swish-data", "swish-ops"]
+}
+
+variable "support_groups" {
+  description = "Groups (the auth proxy's groups header) that work in customer service: diagnostics and cases"
   type        = list(string)
   default     = ["swish-support", "swish-ops"]
+}
+
+variable "github_token" {
+  description = "Read access to Actions and contents of the service repos, for the deployments page; empty: CI shows as unknown"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "kubeconfigs" {
+  description = "Kubeconfig per cluster (staging, production, csms-production) whose user can get deployments and list pods, for the deployments page"
+  type        = map(string)
+  default     = {}
+  sensitive   = true
 }
 
 variable "ocpp_database_url" {

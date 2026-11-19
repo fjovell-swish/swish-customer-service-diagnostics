@@ -41,8 +41,16 @@ locals {
     "database-url"      = { env = "DATABASE_URL", value = local.database_url }
     "ocpp-database-url" = { env = "OCPP_DATABASE_URL", value = var.ocpp_database_url }
     "sentry-dsn"        = { env = "SENTRY_DSN", value = var.sentry_dsn }
+    "github-token"      = { env = "GITHUB_TOKEN", value = var.github_token }
   }
   secrets = { for k, v in local.secret_values : k => v if v.value != "" }
+
+  # The deployments page reads each cluster's kubeconfig from a file: the secrets volume mounts
+  # every secret at /secrets/<name>; KUBECONFIG_<CLUSTER> points at that cluster's.
+  # Cluster names aren't secret: only the kubeconfigs stay sensitive (for_each refuses sensitive keys).
+  kubeconfig_clusters = nonsensitive(keys(var.kubeconfigs))
+  kubeconfig_secrets  = { for cluster in local.kubeconfig_clusters : "kubeconfig-${cluster}" => var.kubeconfigs[cluster] }
+  kubeconfig_env      = { for cluster in local.kubeconfig_clusters : "KUBECONFIG_${upper(replace(cluster, "-", "_"))}" => "/secrets/kubeconfig-${cluster}" }
 
   env = {
     DJANGO_SETTINGS_MODULE      = "config.settings.production"
@@ -50,7 +58,8 @@ locals {
     IMAGE_TAG                   = var.image_tag
     LOG_FORMAT                  = "json"
     OCPP_TENANTS                = join(",", var.ocpp_tenants)
-    AUTH_PROXY_ALLOWED_GROUPS   = join(",", var.allowed_groups)
+    AUTH_PROXY_DATA_GROUPS      = join(",", var.data_groups)
+    AUTH_PROXY_SUPPORT_GROUPS   = join(",", var.support_groups)
     DJANGO_ALLOWED_HOSTS        = join(",", compact(["ca-${local.name}-web.${azurerm_container_app_environment.env.default_domain}", var.custom_domain]))
     DJANGO_CSRF_TRUSTED_ORIGINS = "https://${local.host}"
   }
@@ -79,6 +88,13 @@ resource "azurerm_container_app" "web" {
       value = secret.value.value
     }
   }
+  dynamic "secret" {
+    for_each = local.kubeconfig_secrets
+    content {
+      name  = secret.key
+      value = secret.value
+    }
+  }
 
   ingress {
     external_enabled = true
@@ -93,6 +109,14 @@ resource "azurerm_container_app" "web" {
   template {
     min_replicas = var.min_replicas
     max_replicas = var.max_replicas
+
+    dynamic "volume" {
+      for_each = length(local.kubeconfig_clusters) > 0 ? ["secrets"] : []
+      content {
+        name         = volume.value
+        storage_type = "Secret"
+      }
+    }
 
     container {
       name   = "web"
@@ -112,6 +136,20 @@ resource "azurerm_container_app" "web" {
         content {
           name        = env.value.env
           secret_name = env.key
+        }
+      }
+      dynamic "env" {
+        for_each = local.kubeconfig_env
+        content {
+          name  = env.key
+          value = env.value
+        }
+      }
+      dynamic "volume_mounts" {
+        for_each = length(local.kubeconfig_clusters) > 0 ? ["secrets"] : []
+        content {
+          name = volume_mounts.value
+          path = "/secrets"
         }
       }
 

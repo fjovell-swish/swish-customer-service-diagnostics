@@ -74,9 +74,11 @@ and this repo lives under a personal account, so GitHub refuses to run them from
   default (first tenant) is only a fallback.
 - Field values (statuses, error codes, rejection kinds, stop reasons) are the strings api-ocpp
   stores. Check its enums (`swish-charge/api-ocpp`, `src/models/enums/`) before matching on a new one.
-- Sign-in: the auth proxy forwards `X-Forwarded-User`, `X-Forwarded-Groups` and `X-Proxy-Secret`.
-  Only members of `AUTH_PROXY_ALLOWED_GROUPS` get in, re-checked on every request; without the
-  secret the headers are ignored. Locally (and in tests) the Django password login works too: tests
+- Two roles (`config/roles.py`): `data` (service tables, deployments) and `support` (diagnostics,
+  cases); check them with `has_role()` / `role_required()`, never with `is_staff`. Behind the auth
+  proxy (`X-Forwarded-User`, `X-Forwarded-Groups`, `X-Proxy-Secret`) the roles follow the groups
+  on every request (`AUTH_PROXY_DATA_GROUPS`, `AUTH_PROXY_SUPPORT_GROUPS`); without the secret the
+  headers are ignored. Locally (and in tests) the Django password login works too: tests
   sign in with `force_login(user, backend="django.contrib.auth.backends.ModelBackend")`, or the
   proxy middleware signs them out.
 - Tests that touch api-ocpp need `pytest.mark.django_db(databases="__all__")` and the `ocpp_tables`
@@ -106,7 +108,7 @@ and this repo lives under a personal account, so GitHub refuses to run them from
 ```bash
 python3.15 -m venv .venv && . .venv/bin/activate
 pip install -r test-requirements.txt
-python manage.py migrate && python manage.py seed_fake_data   # fake chargers + user support/support
+python manage.py migrate && python manage.py seed_fake_data   # fake chargers + users support/data/admin
 python manage.py runserver                          # http://localhost:8000/, search "SEED"
 
 python -m pytest -n 4                               # SQLite, no services (Postgres runs in CI)

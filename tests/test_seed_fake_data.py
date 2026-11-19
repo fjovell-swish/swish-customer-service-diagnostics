@@ -12,6 +12,9 @@ from django.core.management.base import CommandError
 from django.db import connections
 from django.utils import timezone
 
+from config.roles import DATA
+from config.roles import SUPPORT
+from config.roles import user_roles
 from diagnostics.checks import run_checks
 from diagnostics.snapshot import collect
 from diagnostics.snapshot import find_chargers
@@ -49,9 +52,18 @@ def test_seed_fake_data_fills_every_tenant(seed: str, tenants: list[str]) -> Non
     assert f"{ocpp_alias(tenants[0])}: 11 fake chargers" in seed
 
 
-def test_seed_fake_data_creates_the_support_user(seed: str) -> None:
-    assert User.objects.get(username="support").check_password("support")
-    assert "Created the user support / support" in seed
+@pytest.mark.parametrize(
+    ("username", "roles"),
+    [("support", {SUPPORT}), ("data", {DATA}), ("admin", {DATA, SUPPORT})],
+)
+def test_seed_fake_data_creates_a_user_per_way_in(
+    seed: str, username: str, roles: set[str]
+) -> None:
+    user = User.objects.get(username=username)
+
+    assert user.check_password(username) and user.is_staff
+    assert user_roles(user) == roles
+    assert f"Created the user {username} / {username}" in seed
 
 
 def test_seed_fake_data_runs_again(seed: str, tenants: list[str]) -> None:

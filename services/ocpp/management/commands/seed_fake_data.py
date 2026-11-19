@@ -4,7 +4,11 @@ diagnosis knows about (offline, faulted, refused badge, car not charging, ...).
 
     python manage.py migrate
     python manage.py seed_fake_data
-    python manage.py runserver        # sign in as support / support, search "SEED"
+    python manage.py runserver        # sign in (below), search "SEED"
+
+It also creates a local user per way in (password = username): `support` (customer service:
+diagnostics and cases), `data` (query the data: the tables and deployments) and `admin` (both,
+and the admin's users).
 
 It (re)creates api-ocpp's tables from the generated models in every tenant's local SQLite file,
 so it can run again at any time. It refuses anything but SQLite: this app must never write to a
@@ -26,6 +30,9 @@ from django.db.backends.base.base import BaseDatabaseWrapper
 from django.db.models import Model
 from django.utils import timezone
 
+from config.roles import DATA
+from config.roles import SUPPORT
+from config.roles import set_roles
 from services.ocpp.models import ChargePointV16
 from services.ocpp.models import ConnectorV16
 from services.ocpp.models import FirmwareV16
@@ -34,7 +41,8 @@ from services.ocpp.models import Maintenance
 from services.ocpp.models import RejectedRfid
 from services.ocpp.models import TransactionV16
 
-SUPPORT_USER = "support"
+# Local users, one per way in (config/roles.py): username (= password) -> roles; None: superuser.
+USERS: dict[str, set[str] | None] = {"support": {SUPPORT}, "data": {DATA}, "admin": None}
 # A finished session's energy, in Wh: enough not to look like "no energy".
 NORMAL_SESSION_WH = 18_000.0
 FLAPPING_DISCONNECTS = 6
@@ -265,9 +273,15 @@ class Command(BaseCommand):
             count = ChargePointV16.objects.using(alias).count()
             self.stdout.write(f"{alias}: {count} fake chargers")
 
-        if not User.objects.filter(username=SUPPORT_USER).exists():
-            User.objects.create_superuser(SUPPORT_USER, "support@example.com", SUPPORT_USER)
-            self.stdout.write(f"Created the user {SUPPORT_USER} / {SUPPORT_USER}")
+        for username, roles in USERS.items():
+            if User.objects.filter(username=username).exists():
+                continue
+            if roles is None:
+                User.objects.create_superuser(username, f"{username}@example.com", username)
+            else:
+                user = User.objects.create_user(username, password=username, is_staff=True)
+                set_roles(user, roles)
+            self.stdout.write(f"Created the user {username} / {username}")
         self.stdout.write(self.style.SUCCESS('Done: search "SEED" on the diagnostics page.'))
 
     def reset_tables(self, connection: BaseDatabaseWrapper) -> None:

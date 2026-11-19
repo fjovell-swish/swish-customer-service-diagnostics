@@ -1,0 +1,89 @@
+{% extends "admin/base_site.html" %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+  .deploy-table { width: 100%; }
+  .deploy-table td { vertical-align: top; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-weight: 600; font-size: .85em; color: #fff; }
+  .badge-healthy { background: #2e7d32; }
+  .badge-deploying { background: #1565c0; }
+  .badge-failed { background: #c62828; }
+  .badge-degraded { background: #ef6c00; }
+  .badge-stale { background: #8d6e00; }
+  .badge-unknown { background: #616161; }
+  .muted { color: var(--body-quiet-color); }
+  .rollout { margin-bottom: .4em; }
+  .error { color: var(--error-fg); }
+</style>
+{% endblock extrastyle %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs"><a href="{% url 'admin:index' %}">Home</a> &rsaquo; Deployment status</div>
+{% endblock breadcrumbs %}
+
+{% block content %}
+<p>
+  Latest <code>main</code> / <code>staging</code> CI runs from GitHub and the live rollout state from Kubernetes.
+  <a class="button" href="?refresh=1">Refresh now</a>
+</p>
+{% for service, rows in services %}
+<div class="module">
+  <table class="deploy-table">
+    <caption>
+      <a href="https://github.com/swish-charge/{{ service.repository }}" style="color: inherit">{{ service.name }}</a>
+    </caption>
+    <thead>
+      <tr>
+        <th>Environment</th><th>Status</th><th>Latest CI run</th><th>Kubernetes</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for row in rows %}
+      <tr>
+        <td>
+          <strong>{{ row.environment.name }}</strong><br>
+          <span class="muted">branch {{ row.environment.branch }}</span>
+          {% if row.unreleased_commits %}
+          <br><a href="https://github.com/swish-charge/{{ service.repository }}/compare/{{ row.environment.branch }}...staging">{{ row.unreleased_commits }} commit{{ row.unreleased_commits|pluralize }} on staging not in main</a>
+          {% endif %}
+        </td>
+        <td>
+          <span class="badge badge-{{ row.health }}">{{ row.health }}</span><br>
+          <span class="muted">{{ row.reason }}</span>
+        </td>
+        <td>
+          {% if row.run %}
+          <a href="{{ row.run.html_url }}">#{{ row.run.run_number }}</a>
+          {{ row.run.conclusion|default:row.run.status }} &middot;
+          <code>{{ row.run.short_sha }}</code> by {{ row.run.actor }}<br>
+          <span class="muted">{{ row.run.commit_message|truncatechars:80 }}</span><br>
+          <span class="muted">started {{ row.run.run_started_at|timesince }} ago</span>
+          {% else %}
+          <span class="error">{{ row.run_error|default:"no run" }}</span>
+          {% endif %}
+        </td>
+        <td>
+          {% for result in row.kube %}
+          <div class="rollout">
+            <code>{{ result.cluster }}:{{ result.namespace }}/{{ result.deployment }}</code><br>
+            {% if result.rollout %}
+            {{ result.rollout.ready }}/{{ result.rollout.desired }} ready,
+            {{ result.rollout.pod_restarts }} pod restart{{ result.rollout.pod_restarts|pluralize }}
+            {% if result.rollout.restarted_at %}<br><span class="muted">restarted {{ result.rollout.restarted_at|timesince }} ago</span>{% endif %}
+            {% if not result.rollout.healthy and result.rollout.progress_message %}<br><span class="muted">{{ result.rollout.progress_message }}</span>{% endif %}
+            {% else %}
+            <span class="error">{{ result.error }}</span>
+            {% endif %}
+          </div>
+          {% empty %}
+          <span class="muted">no deployment</span>
+          {% endfor %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endfor %}
+{% endblock content %}

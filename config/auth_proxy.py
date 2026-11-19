@@ -10,14 +10,16 @@ user service and forwards, on every request,
     X-Proxy-Secret:      a shared secret proving the request came through the proxy
 
 (header names are settings.AUTH_PROXY). Django's RemoteUserBackend turns the user header into a
-`django.contrib.auth` user, created on first visit; this module adds two checks:
+`django.contrib.auth` user, created on first visit; this module adds:
 
-* only members of AUTH_PROXY["ALLOWED_GROUPS"] get in, re-checked on every request, so removing
-  someone from the group in the user service locks them out on their next click;
+* roles from groups (config/roles.py): AUTH_PROXY["ROLE_GROUPS"] says which of the user service's
+  groups grant `data` (query the data) and `support` (customer service). Only people with a role
+  get in, and their roles follow their groups on every request: removing someone from a group in
+  the user service changes what they see, or locks them out, on their next click;
 * the identity headers are ignored unless the proxy secret matches, so a request that reaches the
   container without going through the proxy cannot claim to be anyone.
 
-Admitted users are staff, which is what the diagnostics page requires. No passwords are stored.
+Admitted users are staff (the admin's login requires it). No passwords are stored.
 """
 
 import hmac
@@ -31,6 +33,9 @@ from django.contrib.auth.middleware import RemoteUserMiddleware
 from django.contrib.auth.models import User
 from django.http import HttpRequest
 from django.http.request import HttpHeaders
+
+from config.roles import roles_for_groups
+from config.roles import set_roles
 
 log = logging.getLogger(__name__)
 
@@ -55,12 +60,12 @@ def groups(request: HttpRequest) -> set[str]:
     return {group.strip() for group in raw.split(",") if group.strip()}
 
 
-def in_allowed_group(request: HttpRequest) -> bool:
-    return bool(groups(request) & set(cfg()["ALLOWED_GROUPS"]))
+def roles(request: HttpRequest) -> set[str]:
+    return roles_for_groups(groups(request))
 
 
 class GroupRemoteUserBackend(RemoteUserBackend):
-    """RemoteUserBackend that admits only members of the allowed groups, as staff."""
+    """RemoteUserBackend that admits only people with a role, as staff."""
 
     create_unknown_user = True
 
@@ -69,8 +74,8 @@ class GroupRemoteUserBackend(RemoteUserBackend):
     ) -> User | None:
         if request is None or not remote_user:
             return None
-        if not in_allowed_group(request):
-            log.warning("sign-in refused for %s: not in %s", remote_user, cfg()["ALLOWED_GROUPS"])
+        if not roles(request):
+            log.warning("sign-in refused for %s: no group grants a role", remote_user)
             return None
         user = super().authenticate(request, remote_user)
         return user if isinstance(user, User) else None
@@ -96,6 +101,11 @@ class ProxyHeaderMiddleware(RemoteUserMiddleware):
             request.META.pop(self.header, None)  # unproven identity: treat as no header at all
         super().process_request(request)
         signed_in_remotely = request.session.get(auth.BACKEND_SESSION_KEY) == BACKEND
-        if request.user.is_authenticated and signed_in_remotely and not in_allowed_group(request):
-            log.info("%s left the allowed groups; signing out", request.user.get_username())
+        if not (request.user.is_authenticated and signed_in_remotely):
+            return
+        granted = roles(request)
+        if not granted:
+            log.info("%s has no role any more; signing out", request.user.get_username())
             auth.logout(request)
+            return
+        set_roles(request.user, granted)

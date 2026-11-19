@@ -26,6 +26,13 @@ from django.db import connections
 from django.db.models import Model
 from django.test import Client
 
+from config.roles import set_roles
+from deployments.github import WorkflowRun
+from deployments.kube import Rollout
+from deployments.registry import PRODUCTION
+from deployments.registry import SERVICES
+from deployments.status import EnvironmentStatus
+from deployments.status import KubeResult
 from diagnostics.snapshot import Snapshot
 from diagnostics.snapshot import ocpp_alias
 from services.ocpp.models import ChargePointV16
@@ -236,6 +243,20 @@ def admin_client(db: None) -> Client:
 
 
 @pytest.fixture
+def make_client(db: None) -> Callable[..., Client]:
+    """A signed-in staff user with exactly these roles (none: a staff user with no role)."""
+
+    def factory(*roles: str, username: str = "ana@swish.example") -> Client:
+        user = User.objects.create_user(username, is_staff=True)
+        set_roles(user, set(roles))
+        client = Client()
+        client.force_login(user, backend="django.contrib.auth.backends.ModelBackend")
+        return client
+
+    return factory
+
+
+@pytest.fixture
 def proxy_headers() -> dict[str, str]:
     """What the auth proxy forwards for a member of the support group."""
     return {
@@ -248,3 +269,60 @@ def proxy_headers() -> dict[str, str]:
 def proxy_secret(settings: Any) -> Iterator[dict[str, str]]:
     settings.AUTH_PROXY = {**settings.AUTH_PROXY, "PROXY_SECRET": "s3cret"}
     yield {"HTTP_X_PROXY_SECRET": "s3cret"}
+
+
+# --- Deployments (ported from swish-admin) ---
+
+
+@pytest.fixture
+def make_run(now: datetime) -> Callable[..., WorkflowRun]:
+    def factory(**overrides: Any) -> WorkflowRun:
+        values: dict[str, Any] = {
+            "run_number": 42,
+            "status": "completed",
+            "conclusion": "success",
+            "head_sha": "0123456789abcdef",
+            "commit_message": "Merge pull request #1",
+            "actor": "dev",
+            "html_url": "https://github.com/swish-charge/api-ocpp/actions/runs/1",
+            "run_started_at": now - timedelta(minutes=10),
+            "updated_at": now - timedelta(minutes=5),
+        }
+        return WorkflowRun(**(values | overrides))
+
+    return factory
+
+
+@pytest.fixture
+def make_rollout(now: datetime) -> Callable[..., Rollout]:
+    def factory(**overrides: Any) -> Rollout:
+        values: dict[str, Any] = {
+            "cluster": "production",
+            "namespace": "ocpp-api",
+            "deployment": "ocpp-api",
+            "desired": 4,
+            "ready": 4,
+            "updated": 4,
+            "available": 4,
+            "image": "swishacr098e18.azurecr.io/ocpp-api:main",
+            "restarted_at": now - timedelta(minutes=6),
+            "pod_restarts": 0,
+            "progress_message": "",
+        }
+        return Rollout(**(values | overrides))
+
+    return factory
+
+
+@pytest.fixture
+def make_status() -> Callable[..., EnvironmentStatus]:
+    def factory(run: WorkflowRun | None, rollouts: list[Rollout | None]) -> EnvironmentStatus:
+        kube = [
+            KubeResult(
+                "production", "ns", "dep", rollout=rollout, error="" if rollout else "unreachable"
+            )
+            for rollout in rollouts
+        ]
+        return EnvironmentStatus(service=SERVICES[0], environment=PRODUCTION, run=run, kube=kube)
+
+    return factory
