@@ -12,6 +12,8 @@ COPY --chown=app:app deploy/entrypoints ./deploy/entrypoints
 COPY --chown=app:app config ./config
 COPY --chown=app:app diagnostics ./diagnostics
 COPY --chown=app:app services ./services
+COPY --chown=app:app deployments ./deployments
+COPY --chown=app:app templates ./templates
 RUN mkdir -p /app/staticfiles && chown app:app /app/staticfiles
 USER app
 # Placeholders: collectstatic only needs the settings to import; no real secret is baked in.
