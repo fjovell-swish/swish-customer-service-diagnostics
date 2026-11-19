@@ -146,15 +146,13 @@ Dependencies are declared in `pyproject.toml` and locked with hashes in `require
 they're created from the generated models in every tenant's test database (`ocpp_tables` fixture).
 
 Locally the tests run on SQLite. CI runs them on SQLite and on Postgres, where the 100% coverage
-gate applies. Tests, type check and pre-commit call the shared reusable workflows in
-[`swish-charge/ci-workflows`](https://github.com/swish-charge/ci-workflows) (`@v1`); the rest are
-this repo's own (`.github/workflows/`):
+gate applies (`.github/workflows/`):
 
 | Workflow | Runs |
 | --- | --- |
-| Run tests | `python-tests.yml`: pytest on SQLite (fixed and random order), and on Postgres with 100% coverage + `makemigrations --check` |
-| Pre Commit | `lint.yml`: every hook on every file |
-| Type check | `python-tests.yml` running `mypy` (strict) |
+| Run tests | pytest on SQLite (fixed and random order), and on Postgres with 100% coverage + `makemigrations --check` |
+| Pre Commit | every hook on every file |
+| Type check | `mypy` (strict) |
 | Build Docker Image | builds `deploy/web.Dockerfile`, checks it runs as uid 1000, passes `check --deploy` and serves `/healthz` |
 | Terraform | `terraform fmt -check` and `validate` |
 | Compile requirements | recompiles the lockfiles when `pyproject.toml` changes on main, or on demand (`upgrade`) |

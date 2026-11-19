@@ -13,7 +13,7 @@ on its own (pull before pushing again).
 approval (`.github/workflows/deploy.yaml`). Never push a tag unless asked to release.
 
 Before every push, run locally: pre-commit, mypy and the tests, which run on **SQLite** (see
-Commands). CI (`swish-charge/ci-workflows`' reusable workflows) also runs them on Postgres, where
+Commands). CI also runs them on Postgres, where
 coverage must stay at 100%: a test that needs Postgres is marked `postgres` and skips locally.
 
 ## Overview
@@ -27,8 +27,9 @@ Python 3.15, Django 6.1, pip-tools lockfiles. It reads **api-ocpp's database, re
 connection alias per tenant schema (`ocpp_<tenant>`), and keeps its own data (cases, users) in its
 own Postgres (`default`; SQLite locally).
 
-CI calls `swish-charge/ci-workflows@v1` (`lint.yml`, `python-tests.yml`) for tests, type check and
-pre-commit; the image build, Terraform, lockfiles and deploy are this repo's own workflows.
+CI is this repo's own workflows (`.github/workflows/`). They don't use the shared
+`swish-charge/ci-workflows`: its reusable workflows are internal to the `swish-charge` organization,
+and this repo lives under a personal account, so GitHub refuses to run them from here.
 
 ## Layout
 
