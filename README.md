@@ -13,9 +13,9 @@ starts a **case**. The app then:
 Cases are saved (history in the admin, with who opened them and the ticket number), so a case can
 be reopened, diagnosed again with the latest data, or closed.
 
-It also replaces swish-admin: people with the `data` role get every table of api-ocpp (per
-tenant), api-gateway and api-gireve in the admin, read-only, and the deployments page (what each
-service runs in staging and production, from GitHub Actions and Kubernetes).
+It also replaces the former swish-admin: people with the `data` role get every table of api-ocpp
+(per tenant), api-gateway and api-gireve in the admin, read-only, and the deployments page (what
+each service runs in staging and production, from GitHub Actions and Kubernetes).
 
 ## The workflow
 
@@ -163,8 +163,8 @@ git diff services/                                               # review, then 
 On top of plain `inspectdb`, the command (`services/ocpp/management/commands/regenerate_models.py`):
 
 - keeps the class names the code imports (`charge_points_v16` → `ChargePointV16`, not
-  `ChargePointsV16`; api-gateway's and api-gireve's are their own SQLModel names, as in
-  swish-admin). A new table gets `inspectdb`'s default name until it's added to `SERVICES`;
+  `ChargePointsV16`; api-gateway's and api-gireve's are the services' own SQLModel class
+  names). A new table gets `inspectdb`'s default name until it's added to `SERVICES`;
 - reads Postgres `json` columns with `services.fields.JSONField` (`inspectdb` only maps `jsonb`);
 - types Postgres enums as `TextField` (`inspectdb` can't map them and would flag them as guesses);
 - skips tables that aren't the service's (`spatial_ref_sys` from PostGIS, `alembic_version`);

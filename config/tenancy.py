@@ -1,5 +1,5 @@
 """
-The api-ocpp tenant the admin's pages read, per request (as in swish-admin).
+The api-ocpp tenant the admin's pages read, per request.
 
 The admin's generic pages can't say `.using()`: the chosen tenant is kept in the session and
 exposed through a context variable that the database router reads, so every api-ocpp query of the

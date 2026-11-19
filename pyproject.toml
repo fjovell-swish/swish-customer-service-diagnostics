@@ -12,7 +12,7 @@ dependencies = [
     "whitenoise>=6",
     "sentry-sdk[django]>=2.0",
     "django-stubs-ext>=5.0",
-    # The deployments page (ported from swish-admin): GitHub Actions and Kubernetes.
+    # The deployments page: GitHub Actions and Kubernetes.
     "httpx>=0.28.1",
     "kubernetes>=37.0.2",
 ]

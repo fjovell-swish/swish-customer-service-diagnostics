@@ -284,7 +284,7 @@ def proxy_secret(settings: Any) -> Iterator[dict[str, str]]:
     yield {"HTTP_X_PROXY_SECRET": "s3cret"}
 
 
-# --- Deployments (ported from swish-admin) ---
+# --- Deployments ---
 
 
 @pytest.fixture

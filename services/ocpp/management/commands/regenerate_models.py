@@ -77,7 +77,7 @@ SERVICES: dict[str, tuple[str, dict[str, str]]] = {
             "vip_configs": "VipConfig",
         },
     ),
-    # The services' own SQLModel class names, as swish-admin has them.
+    # The services' own SQLModel class names.
     "gateway": (
         "api-gateway",
         {

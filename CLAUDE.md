@@ -23,8 +23,8 @@ finds the charger (identity, name or serial, across every api-ocpp tenant) and s
 app asks only the questions that matter, then writes a diagnosis (likely cause, confidence, next
 steps, customer reply, ticket summary). See README.md for the questions and rules.
 
-It also replaces swish-admin: the `data` role browses every table of api-ocpp, api-gateway and
-api-gireve in the admin (read-only) and sees the deployments page.
+It also replaces the former swish-admin: the `data` role browses every table of api-ocpp, api-
+gateway and api-gireve in the admin (read-only) and sees the deployments page.
 
 Python 3.15, Django 6.1, pip-tools lockfiles. It reads **api-ocpp's database, read-only**, one
 connection alias per tenant schema (`ocpp_<tenant>`), and **api-gateway's and api-gireve's**, one
@@ -60,7 +60,7 @@ and this repo lives under a personal account, so GitHub refuses to run them from
   three services. `seed_fake_data.py`: fake chargers in the local SQLite tenants, one per problem
   the workflow diagnoses (refuses anything but SQLite), and empty local gateway and gireve tables.
   A new rule or check is worth a fake charger there.
-- `deployments/`: the deployments page (ported from swish-admin). `registry.py` mirrors the
+- `deployments/`: the deployments page. `registry.py` mirrors the
   services' `ci-cd.y*ml`; update it when they change.
 - `config/settings/`: `base` (shared), `local` (default for `manage.py` and pytest; SQLite, no
   environment needed), `ci` (GitHub Actions' Postgres), `production` (default for wsgi; every value

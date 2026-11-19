@@ -138,7 +138,7 @@ def service_database(url: str, read_only: bool, test_name: str = "") -> dict[str
     return config
 
 
-# --- Deployments page (deployments/, ported from swish-admin) ----------------------------------
+# --- Deployments page (deployments/) -----------------------------------------------------------
 # GitHub: read access to Actions and contents of the service repos. Kubernetes: a kubeconfig file
 # per cluster, matching the kubeconfig secrets the services' CI uses; a cluster without one shows
 # as "unknown".

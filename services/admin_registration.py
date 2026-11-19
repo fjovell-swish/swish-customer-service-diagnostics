@@ -1,6 +1,5 @@
 """
-Every model of a service app in the admin, read-only, with options derived from its fields
-(adapted from swish-admin's services/admin_registration.py).
+Every model of a service app in the admin, read-only, with options derived from its fields.
 
 The models are generated, so list columns, filters and search fields are worked out here instead
 of being written per model; per-model tweaks go in the `overrides` of the app's admin.py. Pages
