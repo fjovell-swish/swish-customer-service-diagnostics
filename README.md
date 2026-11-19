@@ -71,11 +71,32 @@ Python 3.15. Nothing else is needed: the local settings are hard-coded (SQLite, 
 python3.15 -m venv .venv && . .venv/bin/activate
 pip install -r test-requirements.txt
 python manage.py migrate                 # this app's own tables (cases, users) only
-python manage.py createsuperuser
-python manage.py runserver               # http://localhost:8000/
+python manage.py seed_fake_data          # fake chargers, and the user support / support
+python manage.py runserver               # http://localhost:8000/, search "SEED"
 ```
 
-Without `OCPP_DATABASE_URL` every tenant is an empty local SQLite file, so searches find nothing.
+Without `OCPP_DATABASE_URL` every tenant is a local SQLite file. `seed_fake_data` (re)creates
+api-ocpp's tables there and fills them with fake chargers, one per problem the workflow
+diagnoses, with timestamps relative to now. Run it again whenever you want fresh data:
+
+| Charger | Tenant | Shows |
+| --- | --- | --- |
+| `SEED-OK-01` | first | nothing wrong (two connectors, a normal session) |
+| `SEED-OFFLINE-01` | first | offline for 3 h |
+| `SEED-SILENT-01` | first | connected, but no heartbeat for 30 min |
+| `SEED-FLAKY-01` | first | 6 disconnections today |
+| `SEED-FAULT-01` | first | connector 1 faulted (`ground_failure`), connector 2 fine |
+| `SEED-BADGE-01` | first | private charger, two refused badges, cable plugged in without a session |
+| `SEED-CAR-01` | first | car not taking power (`suspended_ev`), session with no energy |
+| `SEED-STUCK-01` | first | a session open for 3 days |
+| `SEED-INACTIVE-01` | first | not activated |
+| `SEED-OFFSERVICE-01` | first | set to inoperative |
+| `SEED-FIRMWARE-01` | first | failed firmware update |
+| `SEED-TENANT-01` | second | offline, faulted, a badge refused by its eMSP, recent maintenance |
+| `SEED-TENANT-02` | second | power held back (`suspended_evse`), a session stopped early |
+
+It only ever writes to local SQLite: with `OCPP_DATABASE_URL` set it refuses to run.
+
 To look at real chargers, point it at an environment's api-ocpp through a **read-only** user:
 
 ```bash

@@ -51,6 +51,8 @@ and this repo lives under a personal account, so GitHub refuses to run them from
   close), on the admin's look.
 - `services/ocpp/models.py`: api-ocpp's tables, **generated** (see below).
 - `services/ocpp/management/commands/regenerate_ocpp_models.py`: the generator (inspectdb).
+  `seed_fake_data.py`: fake chargers in the local SQLite tenants, one per problem the workflow
+  diagnoses (refuses anything but SQLite). A new rule or check is worth a fake charger there.
 - `config/settings/`: `base` (shared), `local` (default for `manage.py` and pytest; SQLite, no
   environment needed), `ci` (GitHub Actions' Postgres), `production` (default for wsgi; every value
   from the environment, the required ones listed at the top).
@@ -104,7 +106,8 @@ and this repo lives under a personal account, so GitHub refuses to run them from
 ```bash
 python3.15 -m venv .venv && . .venv/bin/activate
 pip install -r test-requirements.txt
-python manage.py runserver                          # http://localhost:8000/
+python manage.py migrate && python manage.py seed_fake_data   # fake chargers + user support/support
+python manage.py runserver                          # http://localhost:8000/, search "SEED"
 
 python -m pytest -n 4                               # SQLite, no services (Postgres runs in CI)
 mypy                                                # strict
