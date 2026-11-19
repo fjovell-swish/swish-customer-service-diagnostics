@@ -30,7 +30,6 @@ resource "azurerm_subnet" "postgres" {
   resource_group_name  = azurerm_resource_group.rg.name
   virtual_network_name = azurerm_virtual_network.vnet.name
   address_prefixes     = [cidrsubnet(var.vnet_address_space, 8, 2)] # /24
-  service_endpoints    = ["Microsoft.Storage"]
 
   delegation {
     name = "postgres"
@@ -48,8 +47,7 @@ resource "azurerm_private_dns_zone" "postgres" {
 }
 
 resource "azurerm_private_dns_zone_virtual_network_link" "postgres" {
-  name                  = "pdz-link-${local.name}"
-  resource_group_name   = azurerm_resource_group.rg.name
-  private_dns_zone_name = azurerm_private_dns_zone.postgres.name
-  virtual_network_id    = azurerm_virtual_network.vnet.id
+  name                = "pdz-link-${local.name}"
+  private_dns_zone_id = azurerm_private_dns_zone.postgres.id
+  virtual_network_id  = azurerm_virtual_network.vnet.id
 }
