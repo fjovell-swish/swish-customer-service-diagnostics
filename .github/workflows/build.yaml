@@ -54,7 +54,7 @@ jobs:
             -e DJANGO_ALLOWED_HOSTS=diagnostics.example -e AUTH_PROXY_SECRET=ci \
             -e DATABASE_URL=sqlite:////tmp/db.sqlite3 \
             -e OCPP_DATABASE_URL=postgres://ci:ci@localhost/ci -e OCPP_TENANTS=public \
-            swishdiag-web:ci python manage.py check --deploy --fail-level WARNING --database default
+            swishdiag-web:ci manage check --deploy --fail-level WARNING --database default
 
       - name: Image serves /healthz
         run: |

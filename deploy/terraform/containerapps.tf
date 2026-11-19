@@ -172,7 +172,7 @@ resource "azurerm_container_app_job" "migrate" {
       image  = local.web_image
       cpu    = 0.25
       memory = "0.5Gi"
-      args   = ["python", "manage.py", "migrate", "--noinput"]
+      args   = ["migrate"]
 
       dynamic "env" {
         for_each = local.env

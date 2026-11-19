@@ -1,6 +1,6 @@
 # Local stack.
-#   docker compose up -d postgres     # the database `DJANGO_SETTINGS_MODULE=config.settings.ci pytest` uses
-#   docker compose up --build web     # the production image on :8000 (migrated first), against that Postgres
+#   docker compose up --build web     # the production image on :8000, migrated first, on this Postgres
+# (Tests don't need it: they run on SQLite locally; CI runs them on Postgres too.)
 # The web service has no auth proxy in front of it and no proxy secret, so it trusts identity headers
 # as they come: send X-Forwarded-User and X-Forwarded-Groups: swish-support (a header-editing
 # browser extension or curl -H ...). Never run it like this anywhere else.
@@ -37,7 +37,7 @@ services:
       OCPP_TENANTS: ${OCPP_TENANTS:-public}
       LOG_FORMAT: plain
       SENTRY_DSN: ""
-    command: ["python", "manage.py", "migrate", "--noinput"]
+    command: ["migrate"]
     depends_on:
       postgres:
         condition: service_healthy

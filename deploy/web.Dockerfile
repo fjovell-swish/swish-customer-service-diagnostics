@@ -1,4 +1,5 @@
-# The diagnostics page on :8000 (PORT): gunicorn + WhiteNoise via deploy/entrypoints/web.sh.
+# The diagnostics app on :8000 (PORT): gunicorn + WhiteNoise. deploy/entrypoints/entrypoint.sh picks
+# the role from the command: web (default), migrate, or manage <command>.
 # Non-root (uid 1000), runtime dependencies only, hashed lockfile.
 FROM python:3.15-slim
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1
@@ -20,4 +21,5 @@ RUN SECRET_KEY=build DJANGO_ALLOWED_HOSTS=x AUTH_PROXY_SECRET=build DATABASE_URL
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s \
   CMD python -c "import urllib.request,os;urllib.request.urlopen(f'http://127.0.0.1:{os.environ.get(\"PORT\",\"8000\")}/healthz')" || exit 1
-ENTRYPOINT ["/app/deploy/entrypoints/web.sh"]
+ENTRYPOINT ["/app/deploy/entrypoints/entrypoint.sh"]
+CMD ["web"]

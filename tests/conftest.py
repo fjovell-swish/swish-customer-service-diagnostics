@@ -1,12 +1,9 @@
 """
 pytest-django setup and shared fixtures.
 
-Tests run on SQLite with the local settings by default, and on Postgres with
-DJANGO_SETTINGS_MODULE=config.settings.ci (what CI does). Tests marked `postgres` need Postgres
-(introspection of its catalogs) and are skipped on SQLite.
-
-For Postgres locally: `docker compose up -d postgres` then
-`DJANGO_SETTINGS_MODULE=config.settings.ci pytest`.
+Tests run on SQLite with the local settings: that's the local run. CI also runs them on Postgres
+with DJANGO_SETTINGS_MODULE=config.settings.ci, where coverage must be 100%. Tests marked
+`postgres` need Postgres (introspection of its catalogs) and are skipped on SQLite.
 
 api-ocpp's tables are created once per test session in every tenant's test database, from the
 generated models (the `ocpp_tables` fixture), so the snapshot queries run against real tables on

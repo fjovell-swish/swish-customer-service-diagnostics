@@ -1,8 +1,8 @@
 """
 GitHub Actions: local settings with DEBUG off and the Postgres service the CI workflow starts
-(.github/workflows/ci.yaml), hard-coded to the same values. Selected with
-DJANGO_SETTINGS_MODULE=config.settings.ci in the workflow; locally after
-`docker compose up -d postgres`.
+(.github/workflows/ci.yaml, swish-charge/ci-workflows' python-tests.yml), hard-coded to the same
+values. Selected with DJANGO_SETTINGS_MODULE=config.settings.ci in the workflow. Locally, tests run
+on SQLite (config.settings.local).
 
 The api-ocpp aliases are writable here: tests create api-ocpp's tables in each tenant's test
 database.

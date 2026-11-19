@@ -12,8 +12,9 @@ on its own (pull before pushing again).
 **Releasing is separate:** pushing a `vX.Y.Z` tag deploys to staging, then to production after an
 approval (`.github/workflows/deploy.yaml`). Never push a tag unless asked to release.
 
-Before every push, run what CI runs (see Commands): pre-commit, mypy, the SQLite tests, and the
-Postgres tests at 100% coverage when you touched anything that queries the database.
+Before every push, run locally: pre-commit, mypy and the tests, which run on **SQLite** (see
+Commands). CI (`swish-charge/ci-workflows`' reusable workflows) also runs them on Postgres, where
+coverage must stay at 100%: a test that needs Postgres is marked `postgres` and skips locally.
 
 ## Overview
 
@@ -25,6 +26,9 @@ steps, customer reply, ticket summary). See README.md for the questions and rule
 Python 3.15, Django 6.1, pip-tools lockfiles. It reads **api-ocpp's database, read-only**, one
 connection alias per tenant schema (`ocpp_<tenant>`), and keeps its own data (cases, users) in its
 own Postgres (`default`; SQLite locally).
+
+CI calls `swish-charge/ci-workflows@v1` (`lint.yml`, `python-tests.yml`) for tests, type check and
+pre-commit; the image build, Terraform, lockfiles and deploy are this repo's own workflows.
 
 ## Layout
 
@@ -51,8 +55,9 @@ own Postgres (`default`; SQLite locally).
   from the environment, the required ones listed at the top).
 - `config/auth_proxy.py`: sign-in in deployed environments (below). `config/routers.py`: keeps
   api-ocpp models off `default` and never migrates them.
-- `deploy/`: the image (`web.Dockerfile`, `entrypoints/web.sh`), Terraform for Azure Container
-  Apps (VNet, app, migrate job, private Postgres), and the scripts (`deploy.sh`, `migrate.sh`,
+- `deploy/`: the image (`web.Dockerfile`; `entrypoints/entrypoint.sh` runs the role it's given:
+  `web`, `migrate` or `manage <command>`), Terraform for Azure Container Apps (VNet, app, migrate
+  job, private Postgres), and the scripts (`deploy.sh`, `migrate.sh`,
   `promote.sh`, `rollback.sh`, `health.sh`, `manage.sh`, ...).
 
 ## Things that are easy to get wrong
@@ -100,9 +105,7 @@ python3.15 -m venv .venv && . .venv/bin/activate
 pip install -r test-requirements.txt
 python manage.py runserver                          # http://localhost:8000/
 
-python -m pytest -n 4                               # SQLite, no services
-docker compose up -d postgres
-DJANGO_SETTINGS_MODULE=config.settings.ci python -m pytest -n 4 --cov   # Postgres, must stay at 100%
+python -m pytest -n 4                               # SQLite, no services (Postgres runs in CI)
 mypy                                                # strict
 pre-commit run --all-files
 

@@ -136,8 +136,6 @@ The same tooling as central-system-new-world:
 
 ```bash
 python -m pytest -n 4                                  # SQLite, no services (Postgres-only tests skip)
-docker compose up -d postgres
-DJANGO_SETTINGS_MODULE=config.settings.ci python -m pytest -n 4 --cov   # Postgres, 100% coverage
 mypy                                                   # strict
 pre-commit run --all-files                             # black, isort, flake8, djade, shellcheck, ...
 scripts/compile-requirements.sh                        # after changing dependencies in pyproject.toml
@@ -147,13 +145,16 @@ Dependencies are declared in `pyproject.toml` and locked with hashes in `require
 (runtime image) and `test-requirements.txt` (everything else). Tests use api-ocpp's real tables:
 they're created from the generated models in every tenant's test database (`ocpp_tables` fixture).
 
-CI (`.github/workflows/`):
+Locally the tests run on SQLite. CI runs them on SQLite and on Postgres, where the 100% coverage
+gate applies. Tests, type check and pre-commit call the shared reusable workflows in
+[`swish-charge/ci-workflows`](https://github.com/swish-charge/ci-workflows) (`@v1`); the rest are
+this repo's own (`.github/workflows/`):
 
 | Workflow | Runs |
 | --- | --- |
-| Run tests | pytest on SQLite (twice: fixed and random order), and on Postgres with 100% coverage + `makemigrations --check` |
-| Pre Commit | every hook on every file |
-| Type check | `mypy` (strict) |
+| Run tests | `python-tests.yml`: pytest on SQLite (fixed and random order), and on Postgres with 100% coverage + `makemigrations --check` |
+| Pre Commit | `lint.yml`: every hook on every file |
+| Type check | `python-tests.yml` running `mypy` (strict) |
 | Build Docker Image | builds `deploy/web.Dockerfile`, checks it runs as uid 1000, passes `check --deploy` and serves `/healthz` |
 | Terraform | `terraform fmt -check` and `validate` |
 | Compile requirements | recompiles the lockfiles when `pyproject.toml` changes on main, or on demand (`upgrade`) |

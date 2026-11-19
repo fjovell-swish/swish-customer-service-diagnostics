@@ -1,45 +1,19 @@
 ---
 name: Pre Commit
 
+# Every hook in .pre-commit-config.yaml on every file, through swish-charge/ci-workflows' lint.yml.
 on:
   workflow_dispatch:
   push:
     branches:
       - "main"
-  pull_request:  # every PR, stacked ones included (their base is another PR's branch)
+  pull_request:
+
+permissions:
+  contents: read
 
 jobs:
   pre-commit:
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
-        with:
-          python-version: "3.15"
-          cache: "pip"
-      - uses: actions/cache@v6
-        with:
-          path: ~/.cache/pre-commit
-          key: pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
-      - name: Run pre-commit
-        run: |
-          set -o pipefail
-          pip install pre-commit
-          pre-commit run --all-files --show-diff-on-failure 2>&1 | tee pre-commit.log
-      - name: Surface failures as annotations
-        if: failure()
-        shell: python
-        run: |
-          lines = [l.replace("\r", "")[:240] for l in open("pre-commit.log", errors="replace").read().splitlines()]
-          chunk, n = [], 0
-          for l in lines[-600:]:
-              if sum(len(x) + 3 for x in chunk) + len(l) > 3600:
-                  n += 1
-                  print(f"::error title=pre-commit {n:02d}::{'%0A'.join(chunk)}")
-                  chunk = []
-              chunk.append(l)
-          n += 1
-          print(f"::error title=pre-commit {n:02d}::{'%0A'.join(chunk)}")
+    uses: swish-charge/ci-workflows/.github/workflows/lint.yml@v1
+    with:
+      python-version: "3.15"
