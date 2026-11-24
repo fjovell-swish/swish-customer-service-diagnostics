@@ -146,6 +146,43 @@ variable set in the shell wins over it. The same goes for the Claude key and the
 `docker compose up --build web` runs the production image locally, migrated, on the compose
 Postgres (see docker-compose.yml).
 
+## The MCP API
+
+The diagnostics are also an MCP server, at `/mcp`, for Claude Code and Claude Desktop
+(`mcp_api/`). Its tools are read-only and reuse the app's own code:
+
+| Tool | Gives | Role |
+| --- | --- | --- |
+| `find_chargers` | chargers matching an identity, name or serial, in every tenant | support or data |
+| `diagnose_charger` | the charger as support sees it (its data, the checks, the rules' diagnosis) and the next question that matters; call again with `answers` | support or data |
+| `list_cases`, `get_case` | support's cases, with the diagnosis, Claude's assessment and the Jira issue | support |
+| `get_deployments` | what each service runs in staging and production | data |
+
+Like Claude's assessment, the results leave drivers' emails, SIM and IP and firmware signatures
+out and mask badge numbers everywhere.
+
+**Signing in:** MCP clients can't use the auth proxy's browser login, so each person creates a
+**personal token** at `/tokens/` (linked from the admin's home; shown once, 90 days, revocable)
+and the client sends it as `Authorization: Bearer <token>`. It acts as its person, with the roles
+they had when they last signed in to the app. In Claude Code (the page shows this command with
+the token filled in):
+
+```bash
+claude mcp add --transport http swish-diagnostics https://<host>/mcp --header "Authorization: Bearer swd_..."
+```
+
+Deployed, the auth proxy must let `/mcp` through without its sign-in: the app checks the token
+itself. Sign-in with Microsoft (OAuth, which claude.ai's custom connectors need) can replace the
+tokens later without changing the tools.
+
+**Serving:** the app runs on ASGI (`config/asgi.py`): gunicorn with uvicorn workers serves Django
+and `/mcp` in one process (the official MCP SDK, stateless HTTP). `manage.py runserver` doesn't
+serve `/mcp`; locally, run the ASGI app:
+
+```bash
+DJANGO_SETTINGS_MODULE=config.settings.local uvicorn config.asgi:application --reload --env-file .env
+```
+
 ## Signing in, and the two ways in
 
 Two roles (`config/roles.py`), and someone can have both:
@@ -184,7 +221,7 @@ affected. Without the flag, connect directly (port 5432).
 ## Settings
 
 `config/settings/`: `base.py` (shared), `local.py` (default for `manage.py` and pytest),
-`ci.py` (GitHub Actions' Postgres service), `production.py` (default for wsgi; every value from the
+`ci.py` (GitHub Actions' Postgres service), `production.py` (default for asgi and wsgi; every value from the
 environment, required ones listed at the top of the file).
 
 ## The services' models

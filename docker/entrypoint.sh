@@ -1,7 +1,8 @@
 #!/usr/bin/env sh
 # The image's entrypoint. The first argument picks the role; the rest is passed on:
 #
-#   entrypoint.sh [web]              gunicorn on $PORT (the default, the Container App)
+#   entrypoint.sh [web]              the app and the MCP API on $PORT (the default, the Container
+#                                    App): gunicorn with uvicorn workers (ASGI, config/asgi.py)
 #   entrypoint.sh migrate [args...]  manage.py migrate --noinput (the migrate job, before each rollout,
 #                                    so replicas never race to migrate)
 #   entrypoint.sh manage <args...>   any manage.py command, e.g. `manage check --deploy`
@@ -14,7 +15,6 @@ set -eu
 : "${LOG_FORMAT:=json}"
 : "${PORT:=8000}"
 : "${GUNICORN_WORKERS:=2}"
-: "${GUNICORN_THREADS:=8}"
 export DJANGO_SETTINGS_MODULE LOG_LEVEL LOG_FORMAT PORT
 
 cd /app
@@ -24,9 +24,9 @@ ROLE="${1:-web}"
 
 case "$ROLE" in
   web)
-    exec gunicorn config.wsgi:application \
+    exec gunicorn config.asgi:application \
       --bind "0.0.0.0:${PORT}" \
-      --worker-class gthread --workers "${GUNICORN_WORKERS}" --threads "${GUNICORN_THREADS}" \
+      --worker-class uvicorn_worker.UvicornWorker --workers "${GUNICORN_WORKERS}" \
       --access-logfile - "$@"
     ;;
   migrate)

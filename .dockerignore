@@ -5,6 +5,7 @@
 !manage.py
 !config/
 !deployments/
+!mcp_api/
 !diagnostics/
 !services/
 !templates/

@@ -1,0 +1,54 @@
+{% extends "diagnostics/base.html" %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs"><a href="{% url 'admin:index' %}">Home</a> &rsaquo; Personal tokens</div>
+{% endblock breadcrumbs %}
+
+{% block content %}
+<p>The MCP API (<code>{{ mcp_url }}</code>) gives Claude Code or Claude Desktop the diagnostics' read-only tools: find a charger, diagnose it, read the cases{% if can_query_data %} and the deployments{% endif %}, with your roles. It takes a personal token instead of the usual sign-in. A token lasts 90 days.</p>
+
+{% if created %}
+<div class="callout callout-warning">
+  <strong>Your new token. Copy it now: it won't be shown again.</strong>
+  <div class="reply" id="new-token">{{ created }}</div>
+  <button type="button" class="button copy" data-target="new-token">Copy</button>
+  <p style="margin-top: 1em">In Claude Code:</p>
+  <div class="reply" id="claude-code">claude mcp add --transport http swish-diagnostics {{ mcp_url }} --header "Authorization: Bearer {{ created }}"</div>
+  <button type="button" class="button copy" data-target="claude-code">Copy</button>
+</div>
+{% endif %}
+
+<form method="post" class="module" style="padding: 12px 16px">
+  {% csrf_token %}
+  <label for="token-name">New token for</label>
+  <input type="text" id="token-name" name="name" maxlength="100" placeholder="Claude Code on my laptop">
+  <button type="submit" name="action" value="create" class="default">Create a token</button>
+</form>
+
+<div class="module">
+  <table style="width: 100%">
+    <caption>Your tokens</caption>
+    <thead><tr><th>For</th><th>Starts with</th><th>Created</th><th>Expires</th><th>Last used</th><th></th></tr></thead>
+    <tbody>
+    {% for token in tokens %}
+      <tr>
+        <td>{{ token.name }}</td>
+        <td><code>{{ token.key_start }}…</code></td>
+        <td>{{ token.created_at|date:"Y-m-d" }}</td>
+        <td>{% if token.expired %}<span class="badge badge-problem">expired</span>{% else %}{{ token.expires_at|date:"Y-m-d" }}{% endif %}</td>
+        <td>{% if token.last_used_at %}{{ token.last_used_at|timesince }} ago{% else %}never{% endif %}</td>
+        <td>
+          <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="token" value="{{ token.pk }}">
+            <button type="submit" name="action" value="revoke">Revoke</button>
+          </form>
+        </td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="6" class="muted">No tokens yet.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock content %}

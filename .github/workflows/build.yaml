@@ -64,3 +64,8 @@ jobs:
           for _ in $(seq 1 30); do curl -fsS http://localhost:8000/healthz && exit 0; sleep 1; done
           docker logs web
           exit 1
+
+      - name: Image serves the MCP API (and refuses it without a token)
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:8000/mcp)
+          [ "$code" = "401" ] || { echo "/mcp answered $code"; docker logs web; exit 1; }

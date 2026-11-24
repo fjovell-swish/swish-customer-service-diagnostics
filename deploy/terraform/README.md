@@ -30,7 +30,8 @@ Before the first apply:
 6. An auth proxy in front of the app (oauth2-proxy or the API gateway) that signs people in
    against the user service and forwards `X-Forwarded-User`, `X-Forwarded-Groups` and
    `X-Proxy-Secret: $(terraform output -raw proxy_secret)` (config/auth_proxy.py). Its groups
-   grant the roles: `data_groups` and `support_groups` in the tfvars.
+   grant the roles: `data_groups` and `support_groups` in the tfvars. It must let `/mcp` (the MCP
+   API) through without signing in: that path checks its own personal tokens (README.md).
 7. The remote state backend in providers.tf.
 
 Then `deploy/scripts/bootstrap.sh staging`, and releases go through `.github/workflows/deploy.yaml`.

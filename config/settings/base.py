@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     "services.gireve",
     "diagnostics",
     "deployments",
+    "mcp_api",
 ]
 
 MIDDLEWARE = [

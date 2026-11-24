@@ -75,12 +75,22 @@ and this repo lives under a personal account, so GitHub refuses to run them from
 - `deployments/`: the deployments page. `registry.py` mirrors the
   services' `ci-cd.y*ml`; update it when they change.
 - `config/settings/`: `base` (shared), `local` (default for `manage.py` and pytest; SQLite, no
-  environment needed), `ci` (GitHub Actions' Postgres), `production` (default for wsgi; every value
-  from the environment, the required ones listed at the top).
+  environment needed), `ci` (GitHub Actions' Postgres), `production` (default for asgi and wsgi;
+  every value from the environment, the required ones listed at the top).
 - `config/pgbouncer/`: the database backend for the services' aliases when `PGBOUNCER` is on
   (PgBouncer in transaction pooling): every statement runs in a transaction that first sets
   `search_path` and `transaction_read_only` with SET LOCAL (the alias's `PIN`), since settings made
   when connecting don't reliably survive transaction pooling. Its real tests are `postgres`-marked.
+- `mcp_api/`: the MCP API at `/mcp`. `server.py`: the tools (read-only, plain functions reusing
+  `find_chargers`, `collect`, the checks, the workflow and `case_context`, so badges are masked as
+  for Claude; roles checked with `caller()`). `auth.py`: `BearerTokenAuth`, the endpoint's only
+  sign-in (personal tokens, `models.py`, created at `/tokens/`, `views.py`), and
+  `closing_connections`: tools run in the SDK's worker threads, outside Django's request cycle, so
+  they close their own database connections. Tests call the tools' `__wrapped__` with a fake
+  `Context`, and the endpoint through `TestClient(build())`.
+- `config/asgi.py`: the app on ASGI, as served (gunicorn + uvicorn workers): `/mcp` and lifespan
+  go to the MCP app, everything else to Django. `build()` makes a new one each call: the MCP
+  session manager runs once per app. `runserver` (WSGI) doesn't serve `/mcp`.
 - `config/auth_proxy.py`: sign-in in deployed environments (below). `config/routers.py`: keeps
   the services' models off `default` and never migrates them. `config/tenancy.py`: the admin's
   tenant switcher.
@@ -122,6 +132,9 @@ and this repo lives under a personal account, so GitHub refuses to run them from
   keep it that way, two replicas starting together would race.
 - Answers are stored by question key in `Case.answers`; renaming a key or a choice value orphans
   old cases' answers. Add new keys/values instead, and keep `QUESTION_ORDER` in step with `QUESTIONS`.
+- `/mcp` skips Django's middleware and, deployed, the auth proxy: its tools must check roles
+  themselves (`caller(ctx, ...)`) and must never write. A new tool returns only what support may
+  see, through the same masking as `case_context`.
 - Production redirects to HTTPS except `/healthz` (the platform probes it over HTTP); keep the
   exemption if you add probes.
 

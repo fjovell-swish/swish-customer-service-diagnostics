@@ -212,9 +212,13 @@ def case_context(situation: Situation) -> str:
             "next_steps": diagnosis.actions,
         },
     }
-    text = json.dumps(context, indent=1, default=str)
-    for token in tokens(snapshot, situation.answers):
-        text = text.replace(token, mask(token))
+    return masked(json.dumps(context, indent=1, default=str), tokens(snapshot, situation.answers))
+
+
+def masked(text: str, badges: set[str]) -> str:
+    """The text with each of these badge numbers masked, wherever it shows up."""
+    for badge in badges:
+        text = text.replace(badge, mask(badge))
     return text
 
 

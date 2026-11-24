@@ -31,6 +31,10 @@ below them (the cases and the services' tables).
       {% endif %}
       {% if can_handle_cases or can_query_data %}
       <tr>
+        <th scope="row"><a href="{% url 'tokens' %}">MCP API tokens</a></th>
+        <td class="quiet">Use the diagnostics from Claude Code or Claude Desktop.</td>
+      </tr>
+      <tr>
         <th scope="row"><a href="{% url 'django-admindocs-docroot' %}">Documentation</a></th>
         <td class="quiet">The app's views and models, from their docstrings.</td>
       </tr>

@@ -21,6 +21,9 @@ dependencies = [
     "docutils>=0.21",
     # manage.py reads the repo's .env (local runs).
     "python-dotenv>=1.1",
+    # The MCP API (mcp_api/), and the ASGI server for the app and /mcp (config/asgi.py).
+    "mcp>=2.3",
+    "uvicorn-worker>=0.4",
 ]
 
 [project.optional-dependencies]
@@ -43,13 +46,13 @@ requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages]
-find = { include = ["config*", "deployments*", "diagnostics*", "services*"] }
+find = { include = ["config*", "deployments*", "diagnostics*", "mcp_api*", "services*"] }
 
 [tool.isort]
 profile = "black"
 line_length = 99
 force_single_line = true
-known_first_party = ["config", "deployments", "diagnostics", "services"]
+known_first_party = ["config", "deployments", "diagnostics", "mcp_api", "services"]
 skip_glob = ["services/*/models.py"]
 
 [tool.autoflake]
@@ -57,7 +60,7 @@ recursive = true
 
 [tool.mypy]
 # `mypy` with no arguments checks the whole project in strict mode (the "Type check" workflow).
-files = ["config", "deployments", "diagnostics", "services", "manage.py"]
+files = ["config", "deployments", "diagnostics", "mcp_api", "services", "manage.py"]
 strict = true
 python_version = "3.15"
 plugins = ["mypy_django_plugin.main"]
@@ -87,7 +90,7 @@ filterwarnings = ["ignore:No directory at:UserWarning"]
 
 [tool.coverage.run]
 plugins = ["covdefaults"]
-source = ["config", "deployments", "diagnostics", "services", "tests"]
+source = ["config", "deployments", "diagnostics", "mcp_api", "services", "tests"]
 # Everything is measured except the generated api-ocpp models; covdefaults sets fail_under = 100.
 omit = ["services/*/models.py"]
 

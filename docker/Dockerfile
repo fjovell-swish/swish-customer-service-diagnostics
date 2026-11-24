@@ -45,6 +45,7 @@ COPY docker/healthcheck.py /usr/local/bin/healthcheck
 COPY manage.py ./
 COPY config ./config
 COPY deployments ./deployments
+COPY mcp_api ./mcp_api
 COPY diagnostics ./diagnostics
 COPY services ./services
 COPY templates ./templates

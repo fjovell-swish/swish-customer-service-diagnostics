@@ -13,6 +13,7 @@ from deployments.views import deployment_status
 from diagnostics.views import case_detail
 from diagnostics.views import guide
 from diagnostics.views import start
+from mcp_api.views import tokens
 
 admin.site.site_header = "Swish charger diagnostics"
 admin.site.site_title = "Swish charger diagnostics"
@@ -32,6 +33,7 @@ urlpatterns = [
     path("", admin.site.admin_view(start), name="start"),
     path("cases/<int:pk>/", admin.site.admin_view(case_detail), name="case"),
     path("guide/", admin.site.admin_view(guide), name="guide"),
+    path("tokens/", admin.site.admin_view(any_role_required(tokens)), name="tokens"),
     path("admin/tenant/", switch_tenant, name="switch-tenant"),
     path(
         "admin/deployments/",
