@@ -5,7 +5,7 @@
 {% endblock breadcrumbs %}
 
 {% block content %}
-<p>The MCP API (<code>{{ mcp_url }}</code>) gives Claude Code or Claude Desktop the diagnostics' read-only tools: find a charger, diagnose it, read the cases{% if can_query_data %} and the deployments{% endif %}, with your roles. It takes a personal token instead of the usual sign-in. A token lasts 90 days.</p>
+<p>The MCP API (<code>{{ mcp_url }}</code>) gives Claude Code, Claude Desktop or claude.ai the diagnostics' read-only tools: find a charger, diagnose it, read the cases{% if can_query_data %} and the deployments{% endif %}, with your roles. Clients usually sign in with Microsoft (in Claude Code: <code>claude mcp add --transport http swish-diagnostics {{ mcp_url }}</code>, then <code>/mcp</code>). A personal token is for scripts and clients that can't: it lasts 90 days.</p>
 
 {% if created %}
 <div class="callout callout-warning">

@@ -1,6 +1,7 @@
 """
 The MCP API: the diagnostics app's read-only tools for MCP clients (Claude Code, Claude Desktop),
-at /mcp (config/asgi.py), authenticated with personal tokens (mcp_api/auth.py).
+at /mcp (config/asgi.py). Clients sign in with Microsoft through this app's OAuth server
+(mcp_api/oauth.py), or send a personal token (mcp_api/models.py).
 
 The tools reuse the app's own code, so a client gets what support sees: the charger search, the
 snapshot and checks, the workflow's questions and diagnosis, the cases and the deployments. Like
@@ -19,10 +20,15 @@ from django.conf import settings
 from django.contrib.auth.models import User
 from django.core.serializers.json import DjangoJSONEncoder
 from django.utils import timezone
+from mcp.server.auth.provider import AccessToken
+from mcp.server.auth.settings import AuthSettings
+from mcp.server.auth.settings import ClientRegistrationOptions
+from mcp.server.auth.settings import RevocationOptions
 from mcp.server.mcpserver import Context
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ToolAnnotations
+from pydantic import AnyHttpUrl
 from pydantic import Field
 
 from config.roles import DATA
@@ -43,11 +49,24 @@ from diagnostics.workflow import Situation
 from diagnostics.workflow import lookback
 from diagnostics.workflow import next_question
 from mcp_api.auth import closing_connections
+from mcp_api.oauth import CALLBACK_PATH
+from mcp_api.oauth import Provider
+from mcp_api.oauth import microsoft_callback
 
+MCP_PATH = "/mcp"
 MAX_CASES = 50
 READ_ONLY = ToolAnnotations(read_only_hint=True, destructive_hint=False, open_world_hint=False)
 
 server = MCPServer(
+    auth_server_provider=Provider(),
+    auth=AuthSettings(
+        issuer_url=AnyHttpUrl(settings.MCP_BASE_URL),
+        resource_server_url=AnyHttpUrl(settings.MCP_BASE_URL.rstrip("/") + MCP_PATH),
+        client_registration_options=ClientRegistrationOptions(enabled=True),
+        revocation_options=RevocationOptions(enabled=True),
+        # Refuse tokens issued for another server (RFC 8707).
+        validate_token_resource=True,
+    ),
     name="swish-diagnostics",
     title="Swish charger diagnostics",
     instructions=(
@@ -61,12 +80,18 @@ server = MCPServer(
 )
 
 
+server.custom_route(CALLBACK_PATH, methods=["GET"])(microsoft_callback)
+
+
 def caller(ctx: Context, *roles: str) -> User:
     """The token's user, if they have one of these roles."""
     request = ctx.request_context.request
-    user: User | None = getattr(request, "scope", {}).get("user")
-    if user is None:
-        raise ToolError("No user: call this through /mcp with a personal token.")
+    authenticated = getattr(request, "scope", {}).get("user")
+    access_token: AccessToken | None = getattr(authenticated, "access_token", None)
+    subject = access_token and access_token.subject
+    user = subject and User.objects.filter(pk=subject, is_active=True).first()
+    if not user:
+        raise ToolError("No user: call this through /mcp, signed in or with a personal token.")
     if not any(has_role(user, role) for role in roles):
         raise ToolError(f"Needs the {' or the '.join(roles)} role.")
     return user

@@ -63,6 +63,25 @@ variable "pgbouncer" {
   default     = false
 }
 
+variable "microsoft_tenant_id" {
+  description = "Microsoft Entra ID tenant (directory) ID, for MCP clients signing in with Microsoft; empty: personal tokens only"
+  type        = string
+  default     = ""
+}
+
+variable "microsoft_client_id" {
+  description = "The Entra app registration's application (client) ID; its redirect URI is https://<host>/oauth/microsoft/callback"
+  type        = string
+  default     = ""
+}
+
+variable "microsoft_client_secret" {
+  description = "A client secret of that app registration"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
 variable "anthropic_api_key" {
   description = "Claude API key for the assessment of a case; empty: no \"Ask Claude\" button"
   type        = string

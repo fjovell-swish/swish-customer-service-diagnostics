@@ -74,3 +74,55 @@ class PersonalToken(models.Model):
     @property
     def expired(self) -> bool:
         return self.expires_at <= timezone.now()
+
+
+# --- OAuth, for MCP clients signing in with Microsoft (mcp_api/oauth.py) -------------------------
+
+
+class OAuthClient(models.Model):
+    """An MCP client that registered itself (RFC 7591), as the MCP SDK describes it."""
+
+    client_id = models.CharField(max_length=64, unique=True)
+    info = models.JSONField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self) -> str:
+        name: str = self.info.get("client_name") or self.client_id
+        return name
+
+
+class OAuthAuthorization(models.Model):
+    """One sign-in, from the MCP client's /authorize to its code exchange.
+
+    First the person is at Microsoft (`state` identifies the round trip, with its PKCE verifier
+    and nonce); back from there, it holds the user and the hash of the code given to the client,
+    exchanged once at /token.
+    """
+
+    state = models.CharField(max_length=64, unique=True)
+    client_id = models.CharField(max_length=64)
+    params = models.JSONField(help_text="The client's AuthorizationParams.")
+    microsoft_code_verifier = models.CharField(max_length=128)
+    nonce = models.CharField(max_length=64)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.CASCADE)
+    code_hash = models.CharField(max_length=64, null=True, unique=True)
+    expires_at = models.DateTimeField()
+
+
+class OAuthToken(models.Model):
+    """An access or refresh token issued to an MCP client, for a user. Only its hash is kept."""
+
+    class Kind(models.TextChoices):
+        ACCESS = "access", "Access"
+        REFRESH = "refresh", "Refresh"
+
+    kind = models.CharField(max_length=8, choices=Kind)
+    token_hash = models.CharField(max_length=64, unique=True)
+    client_id = models.CharField(max_length=64)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="oauth_tokens"
+    )
+    scopes = models.JSONField(default=list)
+    resource = models.CharField(max_length=255, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()

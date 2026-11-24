@@ -11,7 +11,9 @@ DJANGO_CSRF_TRUSTED_ORIGINS, AUTH_PROXY_* header names and groups (settings/base
 SENTRY_TRACES_SAMPLE_RATE, ENVIRONMENT, IMAGE_TAG, LOG_LEVEL, LOG_FORMAT, PGBOUNCER (the services'
 URLs go through PgBouncer in transaction pooling: config/pgbouncer); ANTHROPIC_API_KEY and
 ANTHROPIC_MODEL (Claude's assessment of a case), JIRA_EMAIL, JIRA_API_TOKEN, JIRA_URL,
-JIRA_PROJECT, JIRA_ISSUE_TYPE and JIRA_LABELS (escalating a case to Jira); see settings/base.py.
+JIRA_PROJECT, JIRA_ISSUE_TYPE and JIRA_LABELS (escalating a case to Jira); MCP_BASE_URL and
+MICROSOFT_TENANT_ID, MICROSOFT_CLIENT_ID, MICROSOFT_CLIENT_SECRET (the MCP API's sign-in with
+Microsoft); see settings/base.py.
 """
 
 import os
@@ -45,6 +47,9 @@ SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 SILENCED_SYSTEM_CHECKS = ["security.W021"]
 
 OCPP_TENANTS = [tenant.strip() for tenant in os.environ["OCPP_TENANTS"].split(",")]
+
+# The OAuth issuer must be the URL MCP clients use: the app's first host unless set.
+MCP_BASE_URL = os.environ.get("MCP_BASE_URL") or f"https://{ALLOWED_HOSTS[0]}"
 
 # Required: without it anyone reaching the container could send the identity headers.
 AUTH_PROXY = {**AUTH_PROXY, "PROXY_SECRET": os.environ["AUTH_PROXY_SECRET"]}

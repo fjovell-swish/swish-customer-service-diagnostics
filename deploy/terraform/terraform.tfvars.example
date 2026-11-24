@@ -4,6 +4,9 @@ location    = "westeurope"
 image_tag   = "latest"
 
 ocpp_tenants   = ["public"]
+# Sign-in with Microsoft for MCP clients (README: The MCP API); empty: personal tokens only.
+# microsoft_tenant_id = "00000000-0000-0000-0000-000000000000"
+# microsoft_client_id = "00000000-0000-0000-0000-000000000000"
 data_groups    = ["swish-data"]
 support_groups = ["swish-support"]
 # export TF_VAR_github_token=...    # the deployments page's GitHub access

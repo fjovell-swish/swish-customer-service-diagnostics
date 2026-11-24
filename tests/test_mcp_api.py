@@ -15,6 +15,8 @@ from django.db.models import Model
 from django.test import Client
 from django.urls import reverse
 from django.utils import timezone
+from mcp.server.auth.middleware.bearer_auth import AuthenticatedUser
+from mcp.server.auth.provider import AccessToken
 from mcp.server.mcpserver.exceptions import ToolError
 from starlette.testclient import TestClient
 
@@ -26,7 +28,6 @@ from deployments.status import EnvironmentStatus
 from diagnostics.models import Case
 from mcp_api import auth
 from mcp_api import server
-from mcp_api.auth import bearer_token
 from mcp_api.auth import closing_connections
 from mcp_api.models import LIFETIME
 from mcp_api.models import PersonalToken
@@ -63,7 +64,10 @@ def make_ctx() -> Callable[..., Any]:
     """A tool's Context, as the endpoint builds it: the request's scope holds the user."""
 
     def factory(user: User | None) -> Any:
-        scope = {} if user is None else {"user": user}
+        scope = {}
+        if user is not None:
+            token = AccessToken(token="t", client_id="c", scopes=[], subject=str(user.pk))
+            scope["user"] = AuthenticatedUser(token)
         return SimpleNamespace(
             request_context=SimpleNamespace(request=SimpleNamespace(scope=scope))
         )
@@ -216,32 +220,17 @@ def test_tokens_linked_from_the_admin_home(make_client: Callable[..., Client]) -
 # --- The endpoint ---
 
 
-@pytest.mark.parametrize(
-    ("header", "token"),
-    [
-        ("Bearer swd_abc", "swd_abc"),
-        ("bearer   swd_abc ", "swd_abc"),
-        ("Basic dXNlcg==", ""),
-    ],
-)
-def test_endpoint_bearer_token(header: str, token: str) -> None:
-    scope = {"headers": [(b"accept", b"*/*"), (b"authorization", header.encode())]}
-
-    assert bearer_token(scope) == token
-
-
-def test_endpoint_bearer_token_missing() -> None:
-    assert bearer_token({"headers": []}) == ""
-
-
 @pytest.mark.django_db(transaction=True)
 @pytest.mark.parametrize("token", ["", "swd_unknown"])
 def test_endpoint_refuses_without_a_valid_token(mcp: TestClient, token: str) -> None:
     response = mcp.post("/mcp", json=rpc("tools/list"), headers=mcp_headers(token, "tools/list"))
 
     assert response.status_code == HTTPStatus.UNAUTHORIZED
-    assert response.headers["WWW-Authenticate"].startswith("Bearer")
-    assert response.json()["error"] == "invalid_token"
+    # Where an MCP client finds how to sign in (RFC 9728).
+    assert (
+        'resource_metadata="http://localhost:8000/.well-known/oauth-protected-resource/mcp"'
+        in (response.headers["WWW-Authenticate"])
+    )
 
 
 @pytest.mark.django_db(transaction=True)
@@ -313,7 +302,7 @@ def test_endpoint_closes_the_worker_thread_connections(monkeypatch: pytest.Monke
 
 @pytest.mark.django_db(databases="__all__")
 def test_tools_need_a_user(make_ctx: Callable[..., Any]) -> None:
-    with pytest.raises(ToolError, match="personal token"):
+    with pytest.raises(ToolError, match="signed in or with a personal token"):
         find_chargers(make_ctx(None), query="CP")
 
 
@@ -379,6 +368,18 @@ def test_tools_diagnose_charger_in_several_tenants(
 
     with pytest.raises(ToolError, match="several tenants"):
         diagnose_charger(support_ctx, identity="CP-TWICE")
+
+
+@pytest.mark.django_db
+def test_tools_inactive_user_refused(
+    make_user: Callable[..., User], make_ctx: Callable[..., Any]
+) -> None:
+    user = make_user(SUPPORT)
+    ctx = make_ctx(user)
+    User.objects.filter(pk=user.pk).update(is_active=False)
+
+    with pytest.raises(ToolError, match="No user"):
+        list_cases(ctx)
 
 
 @pytest.mark.django_db
