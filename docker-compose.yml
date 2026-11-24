@@ -25,7 +25,7 @@ services:
   migrate:
     build: &web-build
       context: .
-      dockerfile: deploy/web.Dockerfile
+      dockerfile: docker/Dockerfile
     environment: &web-env
       SECRET_KEY: compose-only-not-a-secret
       DJANGO_ALLOWED_HOSTS: "*"

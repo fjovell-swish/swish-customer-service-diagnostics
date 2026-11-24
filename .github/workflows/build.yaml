@@ -4,16 +4,14 @@ name: Build Docker Image
 on:
   push:
     paths:
-      - deploy/*.Dockerfile
-      - deploy/entrypoints/**
+      - docker/**
       - requirements.txt
       - .dockerignore
     branches:
       - "main"
   pull_request:
     paths:
-      - deploy/*.Dockerfile
-      - deploy/entrypoints/**
+      - docker/**
       - requirements.txt
       - .dockerignore
   workflow_dispatch:
@@ -30,7 +28,7 @@ jobs:
       - name: Build image
         run: |
           set -o pipefail
-          docker build -f deploy/web.Dockerfile -t swishdiag-web:ci . 2>&1 | tee build-web.log
+          docker build -f docker/Dockerfile -t swishdiag-web:ci . 2>&1 | tee build-web.log
 
       - name: Surface failures as annotations
         if: failure()

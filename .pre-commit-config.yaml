@@ -48,6 +48,10 @@ repos:
     hooks:
       - id: shellcheck
         args: [-x, -P, deploy/scripts]
+  - repo: https://github.com/AleksaC/hadolint-py
+    rev: v2.15.1
+    hooks:
+      - id: hadolint
   - repo: https://github.com/PyCQA/flake8
     rev: 7.3.0
     hooks:

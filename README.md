@@ -227,7 +227,7 @@ gate applies (`.github/workflows/`):
 | Run tests | pytest on SQLite (fixed and random order), and on Postgres with 100% coverage + `makemigrations --check` |
 | Pre Commit | every hook on every file |
 | Type check | `mypy` (strict) |
-| Build Docker Image | builds `deploy/web.Dockerfile`, checks it runs as uid 1000, passes `check --deploy` and serves `/healthz` |
+| Build Docker Image | builds `docker/Dockerfile`, checks it runs as uid 1000, passes `check --deploy` and serves `/healthz` |
 | Terraform | `terraform fmt -check` and `validate` |
 | Compile requirements | recompiles the lockfiles when `pyproject.toml` changes on main, or on demand (`upgrade`) |
 | Deploy | on a `vX.Y.Z` tag: build once, deploy to staging, promote the same image to production |

@@ -74,10 +74,14 @@ and this repo lives under a personal account, so GitHub refuses to run them from
 - `config/auth_proxy.py`: sign-in in deployed environments (below). `config/routers.py`: keeps
   the services' models off `default` and never migrates them. `config/tenancy.py`: the admin's
   tenant switcher.
-- `deploy/`: the image (`web.Dockerfile`; `entrypoints/entrypoint.sh` runs the role it's given:
-  `web`, `migrate` or `manage <command>`), Terraform for Azure Container Apps (VNet, app, migrate
-  job, private Postgres), and the scripts (`deploy.sh`, `migrate.sh`,
-  `promote.sh`, `rollback.sh`, `health.sh`, `manage.sh`, ...).
+- `docker/`: the image. `Dockerfile` (two stages: the hashed lockfile into a virtualenv, then the
+  app on top, root-owned and read-only to uid 1000, static files collected at build time);
+  `entrypoint.sh` runs the role it's given: `web`, `migrate` or `manage <command>`;
+  `healthcheck.py` is the image's HEALTHCHECK. `.dockerignore` is an allowlist: a new top-level
+  directory the app needs must be added there and to a `COPY` line.
+- `deploy/`: Terraform for Azure Container Apps (VNet, app, migrate job, private Postgres), and
+  the scripts (`build-push.sh`, `deploy.sh`, `migrate.sh`, `promote.sh`, `rollback.sh`,
+  `health.sh`, `manage.sh`, ...).
 
 ## Things that are easy to get wrong
 

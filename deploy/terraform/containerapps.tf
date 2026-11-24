@@ -1,4 +1,4 @@
-# Azure Container Apps: one environment on the VNet, from the one image (deploy/web.Dockerfile):
+# Azure Container Apps: one environment on the VNet, from the one image (docker/Dockerfile):
 #
 #   web       external ingress behind the auth proxy, gunicorn
 #   migrate   manual job, `migrate --noinput`, run by deploy/scripts/deploy.sh before every rollout

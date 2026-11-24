@@ -1,7 +1,7 @@
 # Azure deployment (Terraform)
 
 One resource group per environment (`rg-swishdiag-<env>`): a VNet, a Container Apps environment
-with the `web` app and the `migrate` job (deploy/web.Dockerfile), a private Postgres for the app's
+with the `web` app and the `migrate` job (docker/Dockerfile), a private Postgres for the app's
 own data (support cases, users), its registry, the identity it pulls with, and its logs. api-ocpp's
 existing Postgres is read through a read-only user.
 

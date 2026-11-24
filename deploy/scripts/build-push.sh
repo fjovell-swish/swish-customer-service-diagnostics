@@ -9,7 +9,7 @@ log "logging in to $ACR"
 az acr login --name "${ACR%%.*}" >/dev/null
 
 log "building web ($TAG)"
-docker build -f "$ROOT/deploy/web.Dockerfile" \
+docker build -f "$ROOT/docker/Dockerfile" \
   -t "$ACR/$PROJECT-web:$TAG" -t "$ACR/$PROJECT-web:latest" "$ROOT"
 docker push "$ACR/$PROJECT-web:$TAG"
 docker push "$ACR/$PROJECT-web:latest"

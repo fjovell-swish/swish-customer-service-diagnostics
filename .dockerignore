@@ -1,13 +1,14 @@
-.git
-.github
-.venv
+# Allowlist: the build context is only what docker/Dockerfile copies. Anything new (local
+# databases, .env, a virtualenv) stays out until it's added here on purpose.
+*
+!requirements.txt
+!manage.py
+!config/
+!deployments/
+!diagnostics/
+!services/
+!templates/
+!docker/entrypoint.sh
+!docker/healthcheck.py
 **/__pycache__
-*.pyc
-*.sqlite3
-data
-tests
-deploy/terraform
-deploy/scripts
-artifacts
-.pytest_cache
-.mypy_cache
+**/*.pyc
