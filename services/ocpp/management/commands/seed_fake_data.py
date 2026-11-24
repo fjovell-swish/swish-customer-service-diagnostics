@@ -224,6 +224,71 @@ class Seeder:
             )
         )
 
+        # Booted, but never sent a StatusNotification: api-ocpp has no connector for it.
+        self.charge_point("SEED-NOCONN-01", "No connectors reported")
+
+        signal = self.charge_point("SEED-SIGNAL-01", "Weak network signal")
+        self.connector(signal, 1, error_code="weak_signal")
+
+        failed = self.charge_point("SEED-FAILED-01", "Failed session")
+        connector = self.connector(failed, 1)
+        self.transaction(
+            connector,
+            status="FAILED",
+            started_at=self.ago(minutes=50),
+            ended_at=None,
+            energy_delivered=None,
+            reason=None,
+        )
+
+        updating = self.charge_point("SEED-UPDATING-01", "Firmware update in progress")
+        self.connector(updating, 1, status="unavailable")
+        self.save(
+            FirmwareV16(
+                id=uuid.uuid4(),
+                charge_point=updating,
+                status="downloading",
+                firmware_version="2.5.0",
+                created_at=self.ago(minutes=10),
+                updated_at=self.ago(minutes=8),
+            )
+        )
+
+        # Healthy today: the problems only show when the rep answers "Before today" (7 days).
+        last_week = self.charge_point("SEED-LASTWEEK-01", "Problems before today only")
+        connector = self.connector(last_week, 1)
+        self.refused(last_week, "BADGE-BLOCKED", "RFID_NOT_ACCEPTED", created_at=self.ago(days=3))
+        self.transaction(
+            connector,
+            started_at=self.ago(days=2),
+            energy_delivered=40.0,
+            reason="ev_disconnected",
+        )
+
+        self.seed_network_drops()
+
+    def seed_network_drops(self) -> None:
+        """For Claude's assessment: the rules' first match is wrong, the raw data tells why.
+
+        Each of today's sessions ended "ev_disconnected" within a minute of the charger dropping
+        off the network, with energy still flowing. Answered "stops early" / Swish app / charges
+        elsewhere, the rules blame the car being unplugged; the timestamps point at the network.
+        Fewer disconnections than the checks call unstable, so no check flags them either.
+        """
+        charge_point = self.charge_point("SEED-NETWORK-01", "Stops when the network drops")
+        connector = self.connector(charge_point, 1)
+        for hours, energy in [(2, 6_400.0), (7, 3_100.0), (13, 9_800.0)]:
+            started = self.ago(hours=hours + 1)
+            ended = self.ago(hours=hours)
+            self.transaction(
+                connector,
+                started_at=started,
+                ended_at=ended,
+                energy_delivered=energy,
+                reason="ev_disconnected",
+            )
+            self.disconnected(charge_point, ended - timedelta(seconds=40))
+
     def seed_other_tenant(self) -> None:
         # Searching "SEED" also finds these: support doesn't need to know the tenant.
         broken = self.charge_point(

@@ -1,6 +1,7 @@
 """seed_fake_data: fills the local tenants, again and again, and never a real api-ocpp."""
 
 from collections.abc import Iterator
+from datetime import timedelta
 from io import StringIO
 from types import SimpleNamespace
 
@@ -19,6 +20,10 @@ from diagnostics.checks import run_checks
 from diagnostics.snapshot import collect
 from diagnostics.snapshot import find_chargers
 from diagnostics.snapshot import ocpp_alias
+from diagnostics.workflow import EARLIER_LOOKBACK
+from diagnostics.workflow import Situation
+from diagnostics.workflow import diagnose
+from diagnostics.workflow import next_question
 from services.gateway.models import Evse
 from services.gireve.models import CPOToken
 from services.ocpp.management.commands import seed_fake_data
@@ -50,8 +55,8 @@ def seed(local_tenants: None) -> str:
 def test_seed_fake_data_fills_every_tenant(seed: str, tenants: list[str]) -> None:
     counts = [ChargePointV16.objects.using(ocpp_alias(t)).count() for t in tenants]
 
-    assert counts == [11, 2]
-    assert f"{ocpp_alias(tenants[0])}: 11 fake chargers" in seed
+    assert counts == [17, 2]
+    assert f"{ocpp_alias(tenants[0])}: 17 fake chargers" in seed
 
 
 @pytest.mark.parametrize(
@@ -73,7 +78,7 @@ def test_seed_fake_data_runs_again(seed: str, tenants: list[str]) -> None:
 
     call_command("seed_fake_data", stdout=out)
 
-    assert ChargePointV16.objects.using(ocpp_alias(tenants[0])).count() == 11
+    assert ChargePointV16.objects.using(ocpp_alias(tenants[0])).count() == 17
     assert "Created the user" not in out.getvalue()
 
 
@@ -91,6 +96,12 @@ def test_seed_fake_data_runs_again(seed: str, tenants: list[str]) -> None:
         ("SEED-INACTIVE-01", "Charger not activated"),
         ("SEED-OFFSERVICE-01", "Charger set to inoperative"),
         ("SEED-FIRMWARE-01", "Last firmware update download_failed"),
+        ("SEED-NOCONN-01", "No connectors known"),
+        ("SEED-SIGNAL-01", "Connector 1 reports weak_signal"),
+        ("SEED-FAILED-01", "failed"),
+        ("SEED-UPDATING-01", "Firmware update in progress (downloading)"),
+        ("SEED-LASTWEEK-01", None),
+        ("SEED-NETWORK-01", None),
         ("SEED-TENANT-01", "Badge BADGE-EMSP refused: EMSP_REJECTION"),
         ("SEED-TENANT-02", "the charger is holding back power"),
     ],
@@ -107,6 +118,32 @@ def test_seed_fake_data_each_charger_shows_its_problem(
         assert titles == ["Online"]
     else:
         assert any(finding in title for title in titles), titles
+
+
+def test_seed_fake_data_last_week_shows_before_today(seed: str) -> None:
+    [match] = find_chargers("SEED-LASTWEEK-01")
+    now = timezone.now()
+    snapshot = collect(match.tenant, match.charge_point, now, EARLIER_LOOKBACK)
+
+    titles = [f.title for f in run_checks(snapshot, now)]
+
+    assert "Badge BADGE-BLOCKED refused: RFID_NOT_ACCEPTED" in titles
+    assert any("ended with no energy" in title for title in titles), titles
+
+
+def test_seed_fake_data_network_drops_fool_the_rules(seed: str) -> None:
+    """The demo of Claude's assessment: the rules blame the car, the data the network."""
+    [match] = find_chargers("SEED-NETWORK-01")
+    now = timezone.now()
+    snapshot = collect(match.tenant, match.charge_point, now)
+    answers = {"when": "now", "symptom": "stops", "start": "swish_app", "other_chargers": "yes"}
+    situation = Situation(snapshot, run_checks(snapshot, now), answers, now)
+
+    assert next_question(situation) is None
+    assert diagnose(situation).likely_cause == "The last session was stopped (ev_disconnected)"
+    for transaction in snapshot.transactions:
+        drop = min(abs(i.started_at - transaction.ended_at) for i in snapshot.incidents)
+        assert drop < timedelta(minutes=1)
 
 
 def test_seed_fake_data_refuses_a_real_api_ocpp(
@@ -155,4 +192,4 @@ def test_seed_fake_data_creates_missing_tables(local_tenants: None, tenants: lis
 
     call_command("seed_fake_data", stdout=StringIO())
 
-    assert ChargePointV16.objects.using(ocpp_alias(tenants[0])).count() == 11
+    assert ChargePointV16.objects.using(ocpp_alias(tenants[0])).count() == 17

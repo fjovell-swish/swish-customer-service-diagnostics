@@ -117,6 +117,12 @@ diagnoses, with timestamps relative to now. Run it again whenever you want fresh
 | `SEED-INACTIVE-01` | first | not activated |
 | `SEED-OFFSERVICE-01` | first | set to inoperative |
 | `SEED-FIRMWARE-01` | first | failed firmware update |
+| `SEED-NOCONN-01` | first | no connector reported (never sent a StatusNotification) |
+| `SEED-SIGNAL-01` | first | connector available but reporting `weak_signal` |
+| `SEED-FAILED-01` | first | a failed session |
+| `SEED-UPDATING-01` | first | firmware update downloading, connector unavailable |
+| `SEED-LASTWEEK-01` | first | healthy today; answer "Before today" to see a refused badge and a session with no energy |
+| `SEED-NETWORK-01` | first | for Claude's assessment: sessions end `ev_disconnected` right as the charger drops off the network. Answer stops early / Swish app / charges elsewhere: the rules blame the car, the timestamps point at the network |
 | `SEED-TENANT-01` | second | offline, faulted, a badge refused by its eMSP, recent maintenance |
 | `SEED-TENANT-02` | second | power held back (`suspended_evse`), a session stopped early |
 

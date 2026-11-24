@@ -13,7 +13,6 @@ import json
 import logging
 from dataclasses import asdict
 from dataclasses import dataclass
-from datetime import datetime
 from typing import Any
 
 import anthropic
@@ -42,7 +41,14 @@ EXCLUDED_FIELDS = {
     "signing_certificate",
 }
 # Badge numbers (RFID UIDs, eMAIDs): kept apart by their last characters, never sent whole.
-TOKEN_FIELDS = {"id_tag", "id_token", "parent_id_tag", "token_uid", "user_id_token", "vehicle_id_tag"}
+TOKEN_FIELDS = {
+    "id_tag",
+    "id_token",
+    "parent_id_tag",
+    "token_uid",
+    "user_id_token",
+    "vehicle_id_tag",
+}
 TOKEN_VISIBLE_CHARS = 4
 MAX_TOKENS = 4096
 REQUEST_TIMEOUT_SECONDS = 90
@@ -165,9 +171,7 @@ def tokens(snapshot: Snapshot, answers: dict[str, str]) -> set[str]:
     found = {answers.get(BADGE, "").strip()}
     for instance in [*snapshot.rejected_rfids, *snapshot.transactions]:
         found.update(
-            str(getattr(instance, name) or "")
-            for name in TOKEN_FIELDS
-            if hasattr(instance, name)
+            str(getattr(instance, name) or "") for name in TOKEN_FIELDS if hasattr(instance, name)
         )
     # Shorter than the visible part, masking would reveal it all anyway.
     return {token for token in found if len(token) > TOKEN_VISIBLE_CHARS}
