@@ -148,8 +148,8 @@ Postgres (see docker-compose.yml).
 
 ## The MCP API
 
-The diagnostics are also an MCP server, at `/mcp`, for Claude Code, Claude Desktop and claude.ai
-custom connectors (`mcp_api/`). Its tools are read-only and reuse the app's own code:
+The diagnostics are also an MCP server, at `/mcp`, for Claude Code and Claude Desktop
+(`mcp_api/`). Its tools are read-only and reuse the app's own code:
 
 | Tool | Gives | Role |
 | --- | --- | --- |
@@ -161,40 +161,19 @@ custom connectors (`mcp_api/`). Its tools are read-only and reuse the app's own 
 Like Claude's assessment, the results leave drivers' emails, SIM and IP and firmware signatures
 out and mask badge numbers everywhere.
 
-**Signing in with Microsoft** (`mcp_api/oauth.py`): MCP clients can't use the auth proxy's
-browser login, and Microsoft Entra ID can't be their OAuth server directly (no dynamic client
-registration, and it rejects the `resource` parameter MCP clients send). So the app is their OAuth
-server (the MCP SDK's: registration, `/authorize`, `/token`, `/revoke`, metadata) and hands the
-sign-in to Microsoft. Back from Microsoft, the person's email (or UPN) is matched to the app's user
-with that username or email, and the tokens act as them, **with the roles they had when they last
-signed in to the app**: they must have signed in to the web app once. Access tokens last 1 h,
-refresh tokens 30 days; only hashes are stored.
-
-```bash
-claude mcp add --transport http swish-diagnostics https://<host>/mcp   # then /mcp to sign in
-```
-
-In claude.ai: Settings → Connectors → Add custom connector, with `https://<host>/mcp`.
-
-**Setting it up** (once per environment):
-
-1. In Microsoft Entra ID, register an app (single tenant, *Web* platform) with the redirect URI
-   `https://<host>/oauth/microsoft/callback`, and create a client secret. No API permissions
-   beyond the default `openid`, `profile`, `email` sign-in.
-2. Set `MICROSOFT_TENANT_ID`, `MICROSOFT_CLIENT_ID` (Terraform: `microsoft_tenant_id`,
-   `microsoft_client_id` in the tfvars) and `MICROSOFT_CLIENT_SECRET` (the deploy workflow's
-   `MICROSOFT_CLIENT_SECRET` secret). `MCP_BASE_URL` is the app's public URL (Terraform sets it).
-3. Let `/mcp`, `/authorize`, `/token`, `/register`, `/revoke`, `/.well-known/oauth-*` and
-   `/oauth/microsoft/callback` through the auth proxy without its sign-in. For claude.ai they must
-   be reachable from the internet: claude.ai connects from Anthropic's cloud.
-
-**Personal tokens** still work, for scripts or clients without OAuth: each person creates one at
-`/tokens/` (linked from the admin's home; shown once, 90 days, revocable) and sends it as
-`Authorization: Bearer <token>`:
+**Signing in:** MCP clients can't use the auth proxy's browser login, so each person creates a
+**personal token** at `/tokens/` (linked from the admin's home; shown once, 90 days, revocable)
+and the client sends it as `Authorization: Bearer <token>`. It acts as its person, with the roles
+they had when they last signed in to the app. In Claude Code (the page shows this command with
+the token filled in):
 
 ```bash
 claude mcp add --transport http swish-diagnostics https://<host>/mcp --header "Authorization: Bearer swd_..."
 ```
+
+Deployed, the auth proxy must let `/mcp` through without its sign-in: the app checks the token
+itself. Sign-in with Microsoft (OAuth, which claude.ai's custom connectors need) can replace the
+tokens later without changing the tools.
 
 **Serving:** the app runs on ASGI (`config/asgi.py`): gunicorn with uvicorn workers serves Django
 and `/mcp` in one process (the official MCP SDK, stateless HTTP). `manage.py runserver` doesn't

@@ -30,12 +30,8 @@ Before the first apply:
 6. An auth proxy in front of the app (oauth2-proxy or the API gateway) that signs people in
    against the user service and forwards `X-Forwarded-User`, `X-Forwarded-Groups` and
    `X-Proxy-Secret: $(terraform output -raw proxy_secret)` (config/auth_proxy.py). Its groups
-   grant the roles: `data_groups` and `support_groups` in the tfvars. It must let the MCP API's
-   paths through without signing in (`/mcp`, `/authorize`, `/token`, `/register`, `/revoke`,
-   `/.well-known/oauth-*`, `/oauth/microsoft/callback`): they have their own sign-in (README.md).
-8. Optional, for MCP clients signing in with Microsoft: an Entra ID app registration
-   (`microsoft_tenant_id`, `microsoft_client_id` in the tfvars; secret `MICROSOFT_CLIENT_SECRET`).
-   See README.md, The MCP API.
+   grant the roles: `data_groups` and `support_groups` in the tfvars. It must let `/mcp` (the MCP
+   API) through without signing in: that path checks its own personal tokens (README.md).
 7. The remote state backend in providers.tf.
 
 Then `deploy/scripts/bootstrap.sh staging`, and releases go through `.github/workflows/deploy.yaml`.

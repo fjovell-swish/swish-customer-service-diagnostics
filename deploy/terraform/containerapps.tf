@@ -47,7 +47,6 @@ locals {
     "anthropic-api-key" = { env = "ANTHROPIC_API_KEY", value = var.anthropic_api_key }
     "jira-email"        = { env = "JIRA_EMAIL", value = var.jira_email }
     "jira-api-token"    = { env = "JIRA_API_TOKEN", value = var.jira_api_token }
-    "microsoft-secret"  = { env = "MICROSOFT_CLIENT_SECRET", value = var.microsoft_client_secret }
   }
   secrets = { for k, v in local.secret_values : k => v if v.value != "" }
 
@@ -66,9 +65,6 @@ locals {
     LOG_FORMAT                  = "json"
     OCPP_TENANTS                = join(",", var.ocpp_tenants)
     PGBOUNCER                   = tostring(var.pgbouncer)
-    MCP_BASE_URL                = "https://${local.host}"
-    MICROSOFT_TENANT_ID         = var.microsoft_tenant_id
-    MICROSOFT_CLIENT_ID         = var.microsoft_client_id
     AUTH_PROXY_DATA_GROUPS      = join(",", var.data_groups)
     AUTH_PROXY_SUPPORT_GROUPS   = join(",", var.support_groups)
     DJANGO_ALLOWED_HOSTS        = join(",", compact(["ca-${local.name}-web.${azurerm_container_app_environment.env.default_domain}", var.custom_domain]))

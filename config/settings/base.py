@@ -193,15 +193,6 @@ CACHES = {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-5-5")
 
-# --- The MCP API (mcp_api/) -------------------------------------------------------------------
-# The app's public URL: the OAuth server's issuer, and /mcp's resource URL, for MCP clients.
-MCP_BASE_URL = os.environ.get("MCP_BASE_URL", "http://localhost:8000")
-# Sign-in with Microsoft for MCP clients: an Entra ID app registration (web, single tenant) whose
-# redirect URI is MCP_BASE_URL + /oauth/microsoft/callback. Unset: personal tokens only.
-MICROSOFT_TENANT_ID = os.environ.get("MICROSOFT_TENANT_ID", "")
-MICROSOFT_CLIENT_ID = os.environ.get("MICROSOFT_CLIENT_ID", "")
-MICROSOFT_CLIENT_SECRET = os.environ.get("MICROSOFT_CLIENT_SECRET", "")
-
 # --- Escalating a case to Jira (diagnostics/jira.py) -------------------------------------------
 # Jira Cloud, basic auth with an API token. Without them the "Create Jira ticket" button is hidden.
 JIRA_URL = os.environ.get("JIRA_URL", "https://swishforgood.atlassian.net")

@@ -83,19 +83,13 @@ and this repo lives under a personal account, so GitHub refuses to run them from
   when connecting don't reliably survive transaction pooling. Its real tests are `postgres`-marked.
 - `mcp_api/`: the MCP API at `/mcp`. `server.py`: the tools (read-only, plain functions reusing
   `find_chargers`, `collect`, the checks, the workflow and `case_context`, so badges are masked as
-  for Claude; roles checked with `caller()`, from the access token's `subject`, the user's pk).
-  `oauth.py`: the app as MCP clients' OAuth server (the SDK's `OAuthAuthorizationServerProvider`,
-  backed by `OAuthClient`/`OAuthAuthorization`/`OAuthToken`), the sign-in itself handed to
-  Microsoft Entra ID (which can't be the MCP clients' OAuth server: no DCR, no RFC 8707); the
-  Microsoft account is matched to the app's user by username/email, so roles stay the app's.
-  `load_access` also takes personal tokens (`models.py`, created at `/tokens/`, `views.py`).
-  `auth.py`: `closing_connections`: this code runs in worker threads, outside Django's request
-  cycle, so it closes its own database connections. Tests call the tools' `__wrapped__` with a
-  fake `Context`, the OAuth steps directly, and the endpoint through `TestClient(build())`
-  (`MCP_BASE_URL` must be https or localhost: the SDK refuses other issuers).
-- `config/asgi.py`: the app on ASGI, as served (gunicorn + uvicorn workers): the MCP app's own
-  paths (`/mcp`, the OAuth server's, the Microsoft callback) and lifespan go to the MCP app,
-  everything else to Django. `build()` makes a new one each call: the MCP
+  for Claude; roles checked with `caller()`). `auth.py`: `BearerTokenAuth`, the endpoint's only
+  sign-in (personal tokens, `models.py`, created at `/tokens/`, `views.py`), and
+  `closing_connections`: tools run in the SDK's worker threads, outside Django's request cycle, so
+  they close their own database connections. Tests call the tools' `__wrapped__` with a fake
+  `Context`, and the endpoint through `TestClient(build())`.
+- `config/asgi.py`: the app on ASGI, as served (gunicorn + uvicorn workers): `/mcp` and lifespan
+  go to the MCP app, everything else to Django. `build()` makes a new one each call: the MCP
   session manager runs once per app. `runserver` (WSGI) doesn't serve `/mcp`.
 - `config/auth_proxy.py`: sign-in in deployed environments (below). `config/routers.py`: keeps
   the services' models off `default` and never migrates them. `config/tenancy.py`: the admin's
@@ -138,8 +132,7 @@ and this repo lives under a personal account, so GitHub refuses to run them from
   keep it that way, two replicas starting together would race.
 - Answers are stored by question key in `Case.answers`; renaming a key or a choice value orphans
   old cases' answers. Add new keys/values instead, and keep `QUESTION_ORDER` in step with `QUESTIONS`.
-- `/mcp` and the OAuth paths skip Django's middleware and, deployed, the auth proxy (claude.ai
-  reaches them from the internet): its tools must check roles
+- `/mcp` skips Django's middleware and, deployed, the auth proxy: its tools must check roles
   themselves (`caller(ctx, ...)`) and must never write. A new tool returns only what support may
   see, through the same masking as `case_context`.
 - Production redirects to HTTPS except `/healthz` (the platform probes it over HTTP); keep the

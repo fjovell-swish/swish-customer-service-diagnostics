@@ -125,8 +125,6 @@ jobs:
           TF_VAR_anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           TF_VAR_jira_email: ${{ secrets.JIRA_EMAIL }}
           TF_VAR_jira_api_token: ${{ secrets.JIRA_API_TOKEN }}
-          # Sign-in with Microsoft for MCP clients (tenant and client IDs are in the tfvars).
-          TF_VAR_microsoft_client_secret: ${{ secrets.MICROSOFT_CLIENT_SECRET }}
           TF_VAR_kubeconfigs: >-
             {"staging": ${{ toJSON(secrets.KUBECONFIG_STAGING) }},
             "production": ${{ toJSON(secrets.KUBECONFIG_PRODUCTION) }},
@@ -186,8 +184,6 @@ jobs:
           TF_VAR_anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           TF_VAR_jira_email: ${{ secrets.JIRA_EMAIL }}
           TF_VAR_jira_api_token: ${{ secrets.JIRA_API_TOKEN }}
-          # Sign-in with Microsoft for MCP clients (tenant and client IDs are in the tfvars).
-          TF_VAR_microsoft_client_secret: ${{ secrets.MICROSOFT_CLIENT_SECRET }}
           TF_VAR_kubeconfigs: >-
             {"staging": ${{ toJSON(secrets.KUBECONFIG_STAGING) }},
             "production": ${{ toJSON(secrets.KUBECONFIG_PRODUCTION) }},
