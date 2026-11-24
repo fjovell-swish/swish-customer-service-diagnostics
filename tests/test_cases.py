@@ -5,6 +5,9 @@ from datetime import datetime
 from http import HTTPStatus
 from typing import Any
 
+import anthropic
+import httpx
+import httpx2
 import pytest
 from django.contrib import admin
 from django.contrib.auth.models import User
@@ -12,10 +15,15 @@ from django.db.models import Model
 from django.test import Client
 from django.urls import reverse
 
+from diagnostics import assistant
 from diagnostics.admin import CaseAdmin
+from diagnostics.assistant import Assessment
+from diagnostics.jira import Issue
+from diagnostics.jira import JiraClient
 from diagnostics.models import Case
 from diagnostics.workflow import Confidence
 from diagnostics.workflow import Diagnosis
+from diagnostics.workflow import Situation
 from services.ocpp.models import ChargePointV16
 
 pytestmark = [pytest.mark.django_db(databases="__all__"), pytest.mark.usefixtures("ocpp_tables")]
@@ -252,3 +260,251 @@ def test_admin_cases_are_not_added_by_hand(rf: Any) -> None:
     case_admin = CaseAdmin(Case, admin_site=admin.site)
 
     assert case_admin.has_add_permission(rf.get("/")) is False
+
+
+# --- Claude's assessment and the Jira escalation ---
+
+
+@pytest.fixture
+def diagnosed(admin_client: Client, case: Case, case_url: str, answer: Callable[..., Any]) -> Case:
+    for value in ["now", "dead", "no"]:
+        answer(value)
+    admin_client.get(case_url)
+    case.refresh_from_db()
+    return case
+
+
+@pytest.fixture
+def claude_on(settings: Any) -> Any:
+    settings.ANTHROPIC_API_KEY = "sk-test"
+    settings.ANTHROPIC_MODEL = "claude-sonnet-5-5"
+    return settings
+
+
+@pytest.fixture
+def jira_on(settings: Any) -> Any:
+    settings.JIRA_URL = "https://jira.test"
+    settings.JIRA_EMAIL = "support@example.com"
+    settings.JIRA_API_TOKEN = "token"
+    return settings
+
+
+@pytest.fixture
+def assessed(diagnosed: Case, make_assessment: Callable[..., Assessment], now: datetime) -> Case:
+    diagnosed.record_assessment(make_assessment(), "claude-sonnet-5-5", now)
+    return diagnosed
+
+
+@pytest.fixture
+def fake_assess(
+    monkeypatch: pytest.MonkeyPatch, make_assessment: Callable[..., Assessment]
+) -> list[Situation]:
+    """Claude, answering with the assessment; the situations it was asked about."""
+    seen: list[Situation] = []
+
+    def fake(situation: Situation) -> Assessment:
+        seen.append(situation)
+        return make_assessment()
+
+    monkeypatch.setattr(assistant, "assess", fake)
+    return seen
+
+
+@pytest.fixture
+def fake_jira(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, str]]:
+    """Jira, creating ROT-1400; the titles and descriptions it got."""
+    created: list[tuple[str, str]] = []
+
+    def create_issue(self: JiraClient, title: str, description: str) -> Issue:
+        created.append((title, description))
+        return Issue("ROT-1400", "https://jira.test/browse/ROT-1400")
+
+    monkeypatch.setattr(JiraClient, "create_issue", create_issue)
+    return created
+
+
+def test_assess_button_only_with_an_api_key(
+    admin_client: Client, diagnosed: Case, case_url: str, settings: Any
+) -> None:
+    settings.ANTHROPIC_API_KEY = ""
+    assert b'value="assess"' not in admin_client.get(case_url).content
+
+    settings.ANTHROPIC_API_KEY = "sk-test"
+    assert b'value="assess"' in admin_client.get(case_url).content
+
+
+def test_assess_records_claudes_assessment(
+    claude_on: Any,
+    diagnosed: Case,
+    answer: Callable[..., Any],
+    fake_assess: list[Situation],
+    make_assessment: Callable[..., Assessment],
+) -> None:
+    response = answer("", action="assess")
+
+    diagnosed.refresh_from_db()
+    assert response.status_code == HTTPStatus.FOUND
+    assert diagnosed.assessment == make_assessment().as_dict()
+    assert diagnosed.assessment_model == "claude-sonnet-5-5"
+    assert diagnosed.assessed_at is not None
+    assert fake_assess[0].answers == {"when": "now", "symptom": "dead", "power": "no"}
+
+
+def test_assess_does_nothing_without_an_api_key(
+    settings: Any, diagnosed: Case, answer: Callable[..., Any], fake_assess: list[Situation]
+) -> None:
+    settings.ANTHROPIC_API_KEY = ""
+
+    answer("", action="assess")
+
+    diagnosed.refresh_from_db()
+    assert diagnosed.assessment == {} and fake_assess == []
+
+
+def test_assess_waits_for_the_last_answer(
+    claude_on: Any, case: Case, answer: Callable[..., Any], fake_assess: list[Situation]
+) -> None:
+    answer("", action="assess")
+
+    case.refresh_from_db()
+    assert case.assessment == {} and fake_assess == []
+
+
+def test_assess_when_claude_is_unavailable(
+    claude_on: Any,
+    admin_client: Client,
+    diagnosed: Case,
+    case_url: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def unavailable(situation: Situation) -> Assessment:
+        raise anthropic.APIConnectionError(request=httpx2.Request("POST", "https://claude.test"))
+
+    monkeypatch.setattr(assistant, "assess", unavailable)
+
+    response = admin_client.post(case_url, {"action": "assess"}, follow=True)
+
+    diagnosed.refresh_from_db()
+    assert diagnosed.assessment == {}
+    assert b"Claude couldn&#x27;t assess the case" in response.content
+
+
+def test_assessment_shown_on_the_case(
+    admin_client: Client, assessed: Case, case_url: str, jira_on: Any
+) -> None:
+    content = admin_client.get(case_url).content
+
+    assert b"Claude's assessment" in content
+    assert b"Power cut on site" in content
+    assert b"needs the tech team" in content
+    assert b"Ask the site to check the breaker." in content
+    assert b'value="escalate" class="default"' in content
+
+
+def test_assessment_that_support_can_handle(
+    admin_client: Client,
+    diagnosed: Case,
+    case_url: str,
+    jira_on: Any,
+    make_assessment: Callable[..., Assessment],
+    now: datetime,
+) -> None:
+    assessment = make_assessment(needs_escalation=False, agrees_with_rules=False, support_steps=[])
+    diagnosed.record_assessment(assessment, "claude-sonnet-5-5", now)
+
+    content = admin_client.get(case_url).content
+
+    assert b"support can handle it" in content
+    assert b"disagrees with the diagnosis above" in content
+    assert b'value="escalate">' in content  # still possible, not the default
+
+
+def test_escalate_creates_the_jira_issue(
+    jira_on: Any,
+    admin_client: Client,
+    assessed: Case,
+    case_url: str,
+    fake_jira: list[tuple[str, str]],
+) -> None:
+    response = admin_client.post(case_url, {"action": "escalate"}, follow=True)
+
+    assessed.refresh_from_db()
+    assert (assessed.jira_issue, assessed.jira_issue_url) == (
+        "ROT-1400",
+        "https://jira.test/browse/ROT-1400",
+    )
+    title, description = fake_jira[0]
+    assert title == "EOS-1 offline without power"
+    assert description.startswith("Offline since 10:02.\nNo power on site.")
+    assert f"http://testserver{case_url}" in description
+    assert "Support ticket: none" in description
+    assert assessed.summary in description
+    assert b"Created ROT-1400." in response.content
+    assert b'href="https://jira.test/browse/ROT-1400"' in response.content
+
+
+def test_escalate_only_once(
+    jira_on: Any, assessed: Case, answer: Callable[..., Any], fake_jira: list[tuple[str, str]]
+) -> None:
+    answer("", action="escalate")
+    answer("", action="escalate")
+
+    assert len(fake_jira) == 1
+
+
+def test_escalate_needs_an_assessment(
+    jira_on: Any, diagnosed: Case, answer: Callable[..., Any], fake_jira: list[tuple[str, str]]
+) -> None:
+    answer("", action="escalate")
+
+    assert fake_jira == []
+
+
+def test_escalate_does_nothing_without_jira(
+    settings: Any, assessed: Case, answer: Callable[..., Any], fake_jira: list[tuple[str, str]]
+) -> None:
+    settings.JIRA_API_TOKEN = ""
+
+    answer("", action="escalate")
+
+    assert fake_jira == []
+
+
+def test_escalate_when_jira_refuses(
+    jira_on: Any,
+    admin_client: Client,
+    assessed: Case,
+    case_url: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def refuse(self: JiraClient, title: str, description: str) -> Issue:
+        raise httpx.ConnectError("unreachable")
+
+    monkeypatch.setattr(JiraClient, "create_issue", refuse)
+
+    response = admin_client.post(case_url, {"action": "escalate"}, follow=True)
+
+    assessed.refresh_from_db()
+    assert assessed.jira_issue == ""
+    assert b"Jira refused the ticket" in response.content
+
+
+def test_back_drops_the_assessment(assessed: Case, answer: Callable[..., Any]) -> None:
+    answer("", action="back")
+
+    assessed.refresh_from_db()
+    assert assessed.assessment == {}
+
+
+def test_restart_drops_the_assessment(assessed: Case, answer: Callable[..., Any]) -> None:
+    answer("", action="restart")
+
+    assessed.refresh_from_db()
+    assert assessed.assessment == {}
+
+
+def test_rediagnose_keeps_the_assessment(assessed: Case, answer: Callable[..., Any]) -> None:
+    answer("", action="rediagnose")
+
+    assessed.refresh_from_db()
+    assert assessed.assessment

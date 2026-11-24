@@ -16,11 +16,12 @@ class CaseAdmin(admin.ModelAdmin[Case]):
         "tenant",
         "status",
         "likely_cause",
+        "jira_issue",
         "created_by",
         "created_at",
     ]
     list_filter = ["status", "tenant", "confidence"]
-    search_fields = ["identity", "ticket", "likely_cause"]
+    search_fields = ["identity", "ticket", "jira_issue", "likely_cause"]
     list_select_related = ["created_by"]
     date_hierarchy = "created_at"
     fields = [
@@ -36,6 +37,11 @@ class CaseAdmin(admin.ModelAdmin[Case]):
         "customer_reply",
         "summary",
         "answers",
+        "jira_issue",
+        "jira_issue_url",
+        "assessed_at",
+        "assessment_model",
+        "assessment",
     ]
     readonly_fields = [
         "identity",
@@ -48,6 +54,9 @@ class CaseAdmin(admin.ModelAdmin[Case]):
         "customer_reply",
         "summary",
         "answers",
+        "assessed_at",
+        "assessment_model",
+        "assessment",
     ]
 
     # The `support` role sees the history and can update a case's status and ticket; deleting

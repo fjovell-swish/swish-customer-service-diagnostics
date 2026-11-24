@@ -33,6 +33,7 @@ from deployments.registry import PRODUCTION
 from deployments.registry import SERVICES
 from deployments.status import EnvironmentStatus
 from deployments.status import KubeResult
+from diagnostics.assistant import Assessment
 from diagnostics.snapshot import Snapshot
 from diagnostics.snapshot import ocpp_alias
 from services.ocpp.models import ChargePointV16
@@ -337,5 +338,27 @@ def make_status() -> Callable[..., EnvironmentStatus]:
             for rollout in rollouts
         ]
         return EnvironmentStatus(service=SERVICES[0], environment=PRODUCTION, run=run, kube=kube)
+
+    return factory
+
+
+# --- Claude's assessment ---
+
+
+@pytest.fixture
+def make_assessment() -> Callable[..., Assessment]:
+    def factory(**overrides: Any) -> Assessment:
+        values: dict[str, Any] = {
+            "assessment": "The charger has been offline since 10:02 and has no power.",
+            "likely_cause": "Power cut on site",
+            "confidence": "high",
+            "agrees_with_rules": True,
+            "support_steps": ["Ask the site to check the breaker."],
+            "customer_reply": "The charger has no power; the site is checking it.",
+            "needs_escalation": True,
+            "ticket_title": "EOS-1 offline without power",
+            "ticket_description": "Offline since 10:02.\nNo power on site.",
+        }
+        return Assessment(**(values | overrides))
 
     return factory

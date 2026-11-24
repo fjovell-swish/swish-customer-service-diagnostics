@@ -19,13 +19,18 @@ Before the first apply:
    per cluster whose user can get deployments and list pods (`TF_VAR_kubeconfigs`, a map; secrets
    `KUBECONFIG_STAGING`, `KUBECONFIG_PRODUCTION`, `KUBECONFIG_CSMS_PRODUCTION`). Without them the
    page shows CI or that cluster as unknown.
-4. Network: allow `terraform output outbound_ip_addresses` in the services' Postgres firewalls.
+4. Optional, for Claude's assessment of a case: a Claude API key (`TF_VAR_anthropic_api_key`;
+   secret `ANTHROPIC_API_KEY`). For escalating a case to Jira: a Jira account and its API token
+   (`TF_VAR_jira_email`, `TF_VAR_jira_api_token`; secrets `JIRA_EMAIL`, `JIRA_API_TOKEN`) that can
+   create issues in the project (`ROT` by default, config/settings/base.py). Without them the
+   buttons are hidden.
+5. Network: allow `terraform output outbound_ip_addresses` in the services' Postgres firewalls.
    (If a database is only reachable privately, peer `vnet-swishdiag-<env>` with its VNet;
    `vnet_address_space` must not overlap it.)
-5. An auth proxy in front of the app (oauth2-proxy or the API gateway) that signs people in
+6. An auth proxy in front of the app (oauth2-proxy or the API gateway) that signs people in
    against the user service and forwards `X-Forwarded-User`, `X-Forwarded-Groups` and
    `X-Proxy-Secret: $(terraform output -raw proxy_secret)` (config/auth_proxy.py). Its groups
    grant the roles: `data_groups` and `support_groups` in the tfvars.
-6. The remote state backend in providers.tf.
+7. The remote state backend in providers.tf.
 
 Then `deploy/scripts/bootstrap.sh staging`, and releases go through `.github/workflows/deploy.yaml`.

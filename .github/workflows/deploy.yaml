@@ -121,6 +121,10 @@ jobs:
           TF_VAR_sentry_dsn: ${{ secrets.SENTRY_DSN }}
           # The deployments page. Secrets can't start with GITHUB_; an unset kubeconfig is dropped.
           TF_VAR_github_token: ${{ secrets.DEPLOYMENTS_GITHUB_TOKEN }}
+          # Claude's assessment and the Jira escalation of a case; unset: their buttons are hidden.
+          TF_VAR_anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          TF_VAR_jira_email: ${{ secrets.JIRA_EMAIL }}
+          TF_VAR_jira_api_token: ${{ secrets.JIRA_API_TOKEN }}
           TF_VAR_kubeconfigs: >-
             {"staging": ${{ toJSON(secrets.KUBECONFIG_STAGING) }},
             "production": ${{ toJSON(secrets.KUBECONFIG_PRODUCTION) }},
@@ -176,6 +180,10 @@ jobs:
           TF_VAR_sentry_dsn: ${{ secrets.SENTRY_DSN }}
           # The deployments page. Secrets can't start with GITHUB_; an unset kubeconfig is dropped.
           TF_VAR_github_token: ${{ secrets.DEPLOYMENTS_GITHUB_TOKEN }}
+          # Claude's assessment and the Jira escalation of a case; unset: their buttons are hidden.
+          TF_VAR_anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          TF_VAR_jira_email: ${{ secrets.JIRA_EMAIL }}
+          TF_VAR_jira_api_token: ${{ secrets.JIRA_API_TOKEN }}
           TF_VAR_kubeconfigs: >-
             {"staging": ${{ toJSON(secrets.KUBECONFIG_STAGING) }},
             "production": ${{ toJSON(secrets.KUBECONFIG_PRODUCTION) }},

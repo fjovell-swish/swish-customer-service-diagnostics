@@ -57,6 +57,27 @@ variable "github_token" {
   sensitive   = true
 }
 
+variable "anthropic_api_key" {
+  description = "Claude API key for the assessment of a case; empty: no \"Ask Claude\" button"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "jira_email" {
+  description = "The Jira account that creates the escalation tickets; empty: no \"Create the Jira ticket\" button"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "jira_api_token" {
+  description = "That Jira account's API token"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
 variable "kubeconfigs" {
   description = "Kubeconfig per cluster (staging, production, csms-production) whose user can get deployments and list pods, for the deployments page"
   type        = map(string)

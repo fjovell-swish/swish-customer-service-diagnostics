@@ -44,10 +44,47 @@
       <div class="reply" id="ticket-summary">{{ case.summary }}</div>
       <button type="button" class="button copy" data-target="ticket-summary">Copy</button>
     </div>
+
+    {% with ai=case.assessment %}
+    {% if ai %}
+    <div class="module" style="padding: 12px 16px">
+      <h3>Claude's assessment
+        <span class="badge badge-{{ ai.confidence }}">{{ ai.confidence }} confidence</span>
+        {% if ai.needs_escalation %}<span class="badge badge-problem">needs the tech team</span>{% else %}<span class="badge badge-ok">support can handle it</span>{% endif %}
+      </h3>
+      <p class="muted">{{ case.assessment_model }}, {{ case.assessed_at|timesince }} ago &middot; {% if ai.agrees_with_rules %}agrees with the diagnosis above{% else %}<strong>disagrees with the diagnosis above</strong>{% endif %} &middot; check it before acting on it</p>
+      <p><strong>{{ ai.likely_cause }}</strong></p>
+      <p style="white-space: pre-wrap">{{ ai.assessment }}</p>
+      {% if ai.support_steps %}
+      <h4>What support can do</h4>
+      <ol>{% for step in ai.support_steps %}<li>{{ step }}</li>{% endfor %}</ol>
+      {% endif %}
+      <h4>Reply to the customer</h4>
+      <div class="reply" id="ai-customer-reply">{{ ai.customer_reply }}</div>
+      <button type="button" class="button copy" data-target="ai-customer-reply">Copy</button>
+    </div>
+
+    <div class="module" style="padding: 12px 16px">
+      <h3>Ticket for the tech team</h3>
+      {% if case.jira_issue %}
+      <p>Escalated: <a href="{{ case.jira_issue_url }}" target="_blank" rel="noopener">{{ case.jira_issue }}</a></p>
+      {% else %}
+      <p><strong>{{ ai.ticket_title }}</strong></p>
+      <div class="reply" id="ai-ticket">{{ ai.ticket_description }}</div>
+      <form method="post" class="actions-row">
+        {% csrf_token %}
+        <button type="button" class="button copy" data-target="ai-ticket">Copy</button>
+        {% if can_escalate %}<button type="submit" name="action" value="escalate"{% if ai.needs_escalation %} class="default"{% endif %}>Create the Jira ticket</button>{% endif %}
+      </form>
+      {% endif %}
+    </div>
+    {% endif %}
+    {% endwith %}
     {% endif %}
 
     <form method="post" class="actions-row">
       {% csrf_token %}
+      {% if not question and can_assess %}<button type="submit" name="action" value="assess" class="default" onclick="this.textContent = 'Asking Claude…'">{% if case.assessment %}Ask Claude again{% else %}Ask Claude for an assessment{% endif %}</button>{% endif %}
       {% if not question %}<button type="submit" name="action" value="rediagnose">Diagnose again with the latest data</button>{% endif %}
       {% if asked %}<button type="submit" name="action" value="restart">Start the questions over</button>{% endif %}
       {% if case.status != "closed" %}<button type="submit" name="action" value="close">Close the case</button>{% endif %}

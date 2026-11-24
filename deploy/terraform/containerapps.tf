@@ -44,6 +44,9 @@ locals {
     "gireve-db-url"     = { env = "GIREVE_DATABASE_URL", value = var.gireve_database_url }
     "sentry-dsn"        = { env = "SENTRY_DSN", value = var.sentry_dsn }
     "github-token"      = { env = "GITHUB_TOKEN", value = var.github_token }
+    "anthropic-api-key" = { env = "ANTHROPIC_API_KEY", value = var.anthropic_api_key }
+    "jira-email"        = { env = "JIRA_EMAIL", value = var.jira_email }
+    "jira-api-token"    = { env = "JIRA_API_TOKEN", value = var.jira_api_token }
   }
   secrets = { for k, v in local.secret_values : k => v if v.value != "" }
 

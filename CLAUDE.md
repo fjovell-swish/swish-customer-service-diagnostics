@@ -48,6 +48,12 @@ and this repo lives under a personal account, so GitHub refuses to run them from
   `next_question()`, `RULES` (first match wins) and `diagnose()`, which also writes the ticket
   summary. A new question: a function in `QUESTIONS`, its key in `QUESTION_ORDER`, and the rules
   that use it; a new rule: a function in `RULES` at the right place. Tests for each.
+- `diagnostics/assistant.py`: Claude's assessment of a diagnosed case. `case_context()` turns a
+  `Situation` into the JSON Claude gets (personal fields left out, badge numbers masked
+  everywhere); `assess()` calls the Messages API with a forced tool (`ASSESSMENT_SCHEMA`) and
+  returns an `Assessment`. The SDK talks over `httpx2`, not `httpx`, so respx doesn't see it: tests
+  pass a client on an `httpx2.MockTransport`. `diagnostics/jira.py`: the escalation, a Jira
+  issue from Claude's ticket draft (REST API v3, httpx).
 - `diagnostics/models.py`: `Case` (the charger, the answers as JSON, the diagnosis as written).
   `diagnostics/admin.py`: the case history. `diagnostics/forms.py`: start and answer forms.
 - `diagnostics/views.py` + `templates/diagnostics/`: `/` (find a charger, start a case, latest

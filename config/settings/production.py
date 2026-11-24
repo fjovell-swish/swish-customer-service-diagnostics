@@ -8,7 +8,9 @@ OCPP_TENANTS (api-ocpp's TENANT_SCHEMAS, comma-separated).
 Optional: GATEWAY_DATABASE_URL and GIREVE_DATABASE_URL (read-only users on api-gateway's and
 api-gireve's databases; a service left out has no tables in the admin),
 DJANGO_CSRF_TRUSTED_ORIGINS, AUTH_PROXY_* header names and groups (settings/base.py), SENTRY_DSN,
-SENTRY_TRACES_SAMPLE_RATE, ENVIRONMENT, IMAGE_TAG, LOG_LEVEL, LOG_FORMAT.
+SENTRY_TRACES_SAMPLE_RATE, ENVIRONMENT, IMAGE_TAG, LOG_LEVEL, LOG_FORMAT; ANTHROPIC_API_KEY and
+ANTHROPIC_MODEL (Claude's assessment of a case), JIRA_EMAIL, JIRA_API_TOKEN, JIRA_URL,
+JIRA_PROJECT, JIRA_ISSUE_TYPE and JIRA_LABELS (escalating a case to Jira); see settings/base.py.
 """
 
 import os

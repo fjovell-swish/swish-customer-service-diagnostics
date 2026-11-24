@@ -157,6 +157,20 @@ KUBECONFIGS: dict[str, str] = {
 DEPLOYMENT_STATUS_CACHE_SECONDS = int(os.environ.get("DEPLOYMENT_STATUS_CACHE_SECONDS", "60"))
 CACHES = {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}}
 
+# --- Claude's assessment of a case (diagnostics/assistant.py) ----------------------------------
+# Without a key the "Ask Claude" button is hidden.
+ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-5-5")
+
+# --- Escalating a case to Jira (diagnostics/jira.py) -------------------------------------------
+# Jira Cloud, basic auth with an API token. Without them the "Create Jira ticket" button is hidden.
+JIRA_URL = os.environ.get("JIRA_URL", "https://swishforgood.atlassian.net")
+JIRA_EMAIL = os.environ.get("JIRA_EMAIL", "")
+JIRA_API_TOKEN = os.environ.get("JIRA_API_TOKEN", "")
+JIRA_PROJECT = os.environ.get("JIRA_PROJECT", "ROT")
+JIRA_ISSUE_TYPE = os.environ.get("JIRA_ISSUE_TYPE", "[System] Incident")
+JIRA_LABELS = env_list("JIRA_LABELS", "jira_escalated,support-diagnostics")
+
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "Europe/Paris"
 USE_I18N = True

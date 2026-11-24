@@ -45,6 +45,27 @@ The rep can go **Back** one question, **start the questions over**, **diagnose a
 latest data, or **close** the case. The diagnosis is stored as written when the last question was
 answered: the charger's live state moves on, the case keeps what support saw and told the customer.
 
+## Claude's assessment and the Jira escalation
+
+Once a case is diagnosed, **Ask Claude for an assessment** sends the whole case to Claude
+(`diagnostics/assistant.py`): the charger and its connectors as api-ocpp stores them, the
+incidents, refused badges, sessions, maintenance and firmware of the period looked at, the checks'
+findings, the rep's answers and the rules' diagnosis. Claude answers with what's going on (citing
+the data), the likely cause with a confidence, whether it agrees with the rules, **what support can
+do**, a reply for the customer, and whether the case **needs the tech team**, with a Jira ticket's
+title and description. The case keeps the assessment (and the model that wrote it); going Back or
+starting the questions over drops it, since it was about the old answers.
+
+**Create the Jira ticket** (`diagnostics/jira.py`) files Claude's ticket in Jira (by default an
+`[System] Incident` in `ROT`, labelled `jira_escalated`, `support-diagnostics`), with a link to the
+case and the diagnostics' summary, once per case; the case shows the issue. The button is the
+default one when Claude says support can't solve it, and still there when it says they can.
+
+What Claude never gets: drivers' emails, the charger's SIM and IP, firmware signatures. Badge
+numbers are masked to their last 4 characters everywhere (rows, answers, the rules' texts).
+Without `ANTHROPIC_API_KEY`, or the Jira account (`JIRA_EMAIL`, `JIRA_API_TOKEN`), the buttons are
+hidden. If Claude or Jira fails, the rep gets a message and the error goes to Sentry.
+
 ## What it checks
 
 All data is read from **api-ocpp's database** (read-only). central-system has no database, so its

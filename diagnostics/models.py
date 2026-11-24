@@ -4,6 +4,8 @@ from django.conf import settings
 from django.db import models
 from django.urls import reverse
 
+from diagnostics.assistant import Assessment
+from diagnostics.jira import Issue
 from diagnostics.workflow import Diagnosis
 
 
@@ -29,6 +31,14 @@ class Case(models.Model):
     summary = models.TextField(blank=True)
     customer_reply = models.TextField(blank=True)
     diagnosed_at = models.DateTimeField(null=True, blank=True)
+    # Claude's assessment (diagnostics/assistant.py), as returned, and the Jira escalation.
+    assessment = models.JSONField(default=dict, blank=True)
+    assessed_at = models.DateTimeField(null=True, blank=True)
+    assessment_model = models.CharField(max_length=64, blank=True)
+    jira_issue = models.CharField(
+        max_length=255, blank=True, help_text="The Jira issue the case was escalated to."
+    )
+    jira_issue_url = models.URLField(blank=True)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         null=True,
@@ -55,4 +65,15 @@ class Case(models.Model):
         self.customer_reply = diagnosis.customer_reply
         self.diagnosed_at = now
         self.status = self.Status.DIAGNOSED
+        self.save()
+
+    def record_assessment(self, assessment: Assessment, model: str, now: datetime) -> None:
+        self.assessment = assessment.as_dict()
+        self.assessment_model = model
+        self.assessed_at = now
+        self.save()
+
+    def record_escalation(self, issue: Issue) -> None:
+        self.jira_issue = issue.key
+        self.jira_issue_url = issue.url
         self.save()
