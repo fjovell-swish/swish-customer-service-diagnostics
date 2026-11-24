@@ -55,7 +55,8 @@ and this repo lives under a personal account, so GitHub refuses to run them from
   pass a client on an `httpx2.MockTransport`. `diagnostics/jira.py`: the escalation, a Jira
   issue from Claude's ticket draft (REST API v3, httpx).
 - `diagnostics/models.py`: `Case` (the charger, the answers as JSON, the diagnosis as written).
-  `diagnostics/admin.py`: the case history. `diagnostics/forms.py`: start and answer forms.
+  `diagnostics/admin.py`: the case history; its "Add case" leads to `/`, the one place a case
+  starts. `diagnostics/forms.py`: start and answer forms.
 - `diagnostics/views.py` + `templates/diagnostics/`: `/` (find a charger, start a case, latest
   cases), `/cases/<id>/` (next question or the diagnosis; Back, start over, diagnose again,
   close) and `/guide/` (how to diagnose a charger, for support reps: keep it in step with the

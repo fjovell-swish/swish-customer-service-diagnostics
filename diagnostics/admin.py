@@ -1,5 +1,10 @@
+from typing import Any
+
 from django.contrib import admin
+from django.core.exceptions import PermissionDenied
 from django.http import HttpRequest
+from django.http import HttpResponse
+from django.shortcuts import redirect
 
 from config.roles import SUPPORT
 from config.roles import has_role
@@ -8,7 +13,11 @@ from diagnostics.models import Case
 
 @admin.register(Case)
 class CaseAdmin(admin.ModelAdmin[Case]):
-    """The case history. Cases are created and answered on the workflow pages ("View on site")."""
+    """The case history. Cases are created and answered on the workflow pages ("View on site").
+
+    The admin's "Add case" buttons lead to the diagnostics page, where a case starts from a
+    charger: a case made in a plain form would have no charger to diagnose.
+    """
 
     list_display = [
         "id",
@@ -71,4 +80,11 @@ class CaseAdmin(admin.ModelAdmin[Case]):
         return has_role(request.user, SUPPORT)
 
     def has_add_permission(self, request: HttpRequest) -> bool:
-        return False
+        return has_role(request.user, SUPPORT)
+
+    def add_view(
+        self, request: HttpRequest, form_url: str = "", extra_context: dict[str, Any] | None = None
+    ) -> HttpResponse:
+        if not self.has_add_permission(request):
+            raise PermissionDenied
+        return redirect("start")

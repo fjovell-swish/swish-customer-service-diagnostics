@@ -9,14 +9,13 @@ import anthropic
 import httpx
 import httpx2
 import pytest
-from django.contrib import admin
 from django.contrib.auth.models import User
 from django.db.models import Model
 from django.test import Client
 from django.urls import reverse
 
+from config.roles import DATA
 from diagnostics import assistant
-from diagnostics.admin import CaseAdmin
 from diagnostics.assistant import Assessment
 from diagnostics.jira import Issue
 from diagnostics.jira import JiraClient
@@ -256,10 +255,26 @@ def test_admin_case_pages(admin_client: Client, case: Case) -> None:
     assert b"EOS-1" in changelist.content
 
 
-def test_admin_cases_are_not_added_by_hand(rf: Any) -> None:
-    case_admin = CaseAdmin(Case, admin_site=admin.site)
+def test_admin_add_case_leads_to_the_diagnostics_page(admin_client: Client) -> None:
+    response = admin_client.get(reverse("admin:diagnostics_case_add"))
 
-    assert case_admin.has_add_permission(rf.get("/")) is False
+    assert response.status_code == HTTPStatus.FOUND
+    assert response["Location"] == reverse("start")
+    assert not Case.objects.exists()
+
+
+def test_admin_add_case_button_on_the_case_list(admin_client: Client) -> None:
+    content = admin_client.get(reverse("admin:diagnostics_case_changelist")).content
+
+    assert reverse("admin:diagnostics_case_add").encode() in content
+
+
+def test_admin_add_case_needs_the_support_role(
+    make_client: Callable[..., Client],
+) -> None:
+    response = make_client(DATA).get(reverse("admin:diagnostics_case_add"))
+
+    assert response.status_code == HTTPStatus.FORBIDDEN
 
 
 # --- Claude's assessment and the Jira escalation ---
