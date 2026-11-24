@@ -1,0 +1,42 @@
+{% extends "admin/index.html" %}
+{% comment %}
+The admin's home: the app's own pages first, by role, in the same markup as Django's app list
+below them (the cases and the services' tables).
+{% endcomment %}
+
+{% block content %}
+<div id="content-main" class="app-list">
+  <div class="app-start module">
+    <table>
+      <caption><span class="section">Start here</span></caption>
+      {% if can_handle_cases %}
+      <tr>
+        <th scope="row"><a href="{% url 'start' %}">Charger diagnostics</a></th>
+        <td class="quiet">"The charger doesn't work": find the charger and start a case.</td>
+      </tr>
+      <tr>
+        <th scope="row"><a href="{% url 'guide' %}">How to diagnose a charger</a></th>
+        <td class="quiet">The guide for support, step by step.</td>
+      </tr>
+      <tr>
+        <th scope="row"><a href="{% url 'admin:diagnostics_case_changelist' %}">Cases</a></th>
+        <td class="quiet">Every case, with its answers, diagnosis and Jira issue.</td>
+      </tr>
+      {% endif %}
+      {% if can_query_data %}
+      <tr>
+        <th scope="row"><a href="{% url 'deployment-status' %}">Deployments</a></th>
+        <td class="quiet">What each service runs in staging and production.</td>
+      </tr>
+      {% endif %}
+      {% if can_handle_cases or can_query_data %}
+      <tr>
+        <th scope="row"><a href="{% url 'django-admindocs-docroot' %}">Documentation</a></th>
+        <td class="quiet">The app's views and models, from their docstrings.</td>
+      </tr>
+      {% endif %}
+    </table>
+  </div>
+  {% include "admin/app_list.html" with app_list=app_list show_changelinks=True %}
+</div>
+{% endblock content %}

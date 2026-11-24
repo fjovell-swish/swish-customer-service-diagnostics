@@ -157,6 +157,25 @@ def test_access_admin_index_shows_each_role_its_part(
     assert tables in data and cases not in data
 
 
+@pytest.mark.parametrize(
+    ("role", "shown", "hidden"),
+    [
+        (SUPPORT, ["start", "guide", "admin:diagnostics_case_changelist"], ["deployment-status"]),
+        (DATA, ["deployment-status"], ["start", "guide", "admin:diagnostics_case_changelist"]),
+    ],
+)
+def test_access_admin_index_start_here_follows_the_role(
+    make_client: Callable[..., Client], role: str, shown: list[str], hidden: list[str]
+) -> None:
+    content = make_client(role).get(reverse("admin:index")).content.decode()
+    start_here = content.split("Start here", 1)[1].split("</table>", 1)[0]
+
+    for name in shown + ["django-admindocs-docroot"]:
+        assert f'href="{reverse(name)}"' in start_here, name
+    for name in hidden:
+        assert f'href="{reverse(name)}"' not in start_here, name
+
+
 def test_proxy_roles_follow_the_groups_on_every_request(
     proxy_headers: dict[str, str],
 ) -> None:
