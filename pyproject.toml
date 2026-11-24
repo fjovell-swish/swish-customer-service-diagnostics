@@ -19,6 +19,8 @@ dependencies = [
     "anthropic>=2.13",
     # admindocs renders the docstrings (reStructuredText) at /admin/doc/.
     "docutils>=0.21",
+    # manage.py reads the repo's .env (local runs).
+    "python-dotenv>=1.1",
 ]
 
 [project.optional-dependencies]

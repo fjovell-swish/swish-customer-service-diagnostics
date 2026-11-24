@@ -140,6 +140,7 @@ python3.15 -m venv .venv && . .venv/bin/activate
 pip install -r test-requirements.txt
 python manage.py migrate && python manage.py seed_fake_data   # fake chargers + users support/data/admin
 python manage.py runserver                          # http://localhost:8000/, search "SEED"
+# manage.py loads .env (python-dotenv; the shell's environment wins); pytest doesn't
 
 python -m pytest -n 4                               # SQLite, no services (Postgres runs in CI)
 mypy                                                # strict

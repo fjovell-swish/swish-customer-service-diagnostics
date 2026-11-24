@@ -140,6 +140,9 @@ To look at real chargers, point it at an environment's api-ocpp through a **read
 OCPP_DATABASE_URL=postgres://readonly:...@host:5432/ocpp OCPP_TENANTS=public,eosgie python manage.py runserver
 ```
 
+Or put them in `.env` (`cp .env.example .env`, git-ignored): `manage.py` reads it by itself, and a
+variable set in the shell wins over it. The same goes for the Claude key and the Jira account.
+
 `docker compose up --build web` runs the production image locally, migrated, on the compose
 Postgres (see docker-compose.yml).
 
