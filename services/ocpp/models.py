@@ -221,6 +221,7 @@ class ConnectorV16(models.Model):
     voltage = models.IntegerField(blank=True, null=True)
     amperage = models.IntegerField(blank=True, null=True)
     power_type = models.CharField(max_length=10, blank=True, null=True)
+    max_connector_power = models.FloatField(blank=True, null=True)
     id = models.UUIDField(primary_key=True)
     created_at = models.DateTimeField(blank=True, null=True)
     updated_at = models.DateTimeField(blank=True, null=True)
