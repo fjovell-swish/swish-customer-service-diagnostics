@@ -2,9 +2,8 @@
 The app on ASGI: Django for every page, and the MCP API at /mcp (mcp_api/server.py), in one
 process. gunicorn runs it with uvicorn workers (docker/entrypoint.sh, `web`).
 
-/mcp skips Django's middleware: it has its own sign-in, personal tokens (mcp_api/auth.py), and
-in deployed environments the auth proxy must let it through. Lifespan events go to the MCP app,
-whose session manager needs them; Django doesn't take any.
+/mcp skips Django's middleware: it has its own sign-in, personal tokens (mcp_api/auth.py).
+Lifespan events go to the MCP app, whose session manager needs them; Django doesn't take any.
 """
 
 import os

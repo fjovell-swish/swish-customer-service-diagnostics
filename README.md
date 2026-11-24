@@ -161,7 +161,7 @@ The diagnostics are also an MCP server, at `/mcp`, for Claude Code and Claude De
 Like Claude's assessment, the results leave drivers' emails, SIM and IP and firmware signatures
 out and mask badge numbers everywhere.
 
-**Signing in:** MCP clients can't use the auth proxy's browser login, so each person creates a
+**Signing in:** MCP clients can't use the app's browser sign-in, so each person creates a
 **personal token** at `/tokens/` (linked from the admin's home; shown once, 90 days, revocable)
 and the client sends it as `Authorization: Bearer <token>`. It acts as its person, with the roles
 they had when they last signed in to the app. In Claude Code (the page shows this command with
@@ -171,9 +171,7 @@ the token filled in):
 claude mcp add --transport http swish-diagnostics https://<host>/mcp --header "Authorization: Bearer swd_..."
 ```
 
-Deployed, the auth proxy must let `/mcp` through without its sign-in: the app checks the token
-itself. Sign-in with Microsoft (OAuth, which claude.ai's custom connectors need) can replace the
-tokens later without changing the tools.
+`/mcp` skips Django's sign-in: the app checks the token itself.
 
 **Serving:** the app runs on ASGI (`config/asgi.py`): gunicorn with uvicorn workers serves Django
 and `/mcp` in one process (the official MCP SDK, stateless HTTP). `manage.py runserver` doesn't
@@ -187,20 +185,33 @@ DJANGO_SETTINGS_MODULE=config.settings.local uvicorn config.asgi:application --r
 
 Two roles (`config/roles.py`), and someone can have both:
 
-| Role | Gets | Granted by (proxy groups) |
+| Role | Gets | Granted by (Entra groups) |
 | --- | --- | --- |
-| `support` (customer service) | the diagnostics workflow (`/`) and the case history | `AUTH_PROXY_SUPPORT_GROUPS`, default `swish-support,swish-ops` |
-| `data` (query the data) | every service table in the admin, read-only, with the tenant switcher, and the deployments page | `AUTH_PROXY_DATA_GROUPS`, default `swish-data,swish-ops` |
+| `support` (customer service) | the diagnostics workflow (`/`) and the case history | `MICROSOFT_SUPPORT_GROUPS` |
+| `data` (query the data) | every service table in the admin, read-only, with the tenant switcher, and the deployments page | `MICROSOFT_DATA_GROUPS` |
 
 `/` lands people with only `data` on the admin's tables. Each role sees only its part of the admin
 index and header.
 
-In deployed environments people sign in to the user service at an **auth proxy** in front of the
-app, as for central-system-new-world's read-only admin (`config/auth_proxy.py`). The proxy
-forwards `X-Forwarded-User`, `X-Forwarded-Groups` and a shared secret (`X-Proxy-Secret`); a user's
-roles follow their groups on every request (losing every role signs them out), and no password is
-stored. Locally the Django login form works too, and roles are the Django groups `data` and
-`support`: `seed_fake_data` creates `support`, `data` and `admin` (superuser: both).
+People **sign in with Microsoft** (Entra ID), as everywhere else at Swish (`config/microsoft.py`):
+the login page's "Sign in with Microsoft" button, an OpenID Connect code flow. Their first sign-in
+creates their user (their UPN, as staff, with no password); every sign-in sets their roles from
+the Entra groups in their ID token, and someone in no such group is refused. A change in Entra
+applies at their next sign-in: sessions last 12 hours.
+
+To set it up, in Microsoft Entra ID:
+
+1. Register an app (single tenant), platform *Web*, redirect URI
+   `https://<host>/accounts/microsoft/callback/` (locally `http://localhost:8000/accounts/microsoft/callback/`),
+   and create a client secret. The default `openid profile email` permissions are enough.
+2. Token configuration → Add groups claim → *Groups assigned to the application*, and assign the
+   support and data groups to the app (Enterprise applications → Users and groups). Sending all of
+   someone's groups can overflow the token, and such a sign-in is refused.
+3. Set `MICROSOFT_TENANT_ID`, `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`, and the groups'
+   object IDs in `MICROSOFT_SUPPORT_GROUPS` and `MICROSOFT_DATA_GROUPS` (comma-separated).
+
+The password login stays under it, for superusers made with `manage.py createsuperuser` and, locally,
+the seed users: `seed_fake_data` creates `support`, `data` and `admin` (superuser: both).
 
 ## Read-only on the services
 
@@ -210,8 +221,8 @@ transactions
 (`default_transaction_read_only=on`): a write fails with "cannot execute UPDATE in a read-only
 transaction". Use a database user with `SELECT` only anyway.
 
-**Through PgBouncer** (Azure's, port 6432, transaction pooling), set `PGBOUNCER=true`
-(Terraform: `pgbouncer = true`). Consecutive statements can then run on different server
+**Through PgBouncer** (Azure's, port 6432, transaction pooling), set `PGBOUNCER=true`.
+Consecutive statements can then run on different server
 connections, so the tenant's `search_path` and the read-only mode set when connecting would only
 follow if PgBouncer tracks them. With the flag, the services' aliases use `config/pgbouncer`
 instead: every statement runs in a short transaction that first does `SET LOCAL search_path` and
@@ -280,32 +291,13 @@ gate applies (`.github/workflows/`):
 | Pre Commit | every hook on every file |
 | Type check | `mypy` (strict) |
 | Build Docker Image | builds `docker/Dockerfile`, checks it runs as uid 1000, passes `check --deploy` and serves `/healthz` |
-| Terraform | `terraform fmt -check` and `validate` |
 | Compile requirements | recompiles the lockfiles when `pyproject.toml` changes on main, or on demand (`upgrade`) |
-| Deploy | on a `vX.Y.Z` tag: build once, deploy to staging, promote the same image to production |
 
 ## Deployment
 
-Azure Container Apps, with Terraform in `deploy/terraform/` (first-time setup in its README) and
-scripts in `deploy/scripts/`. Per environment: a VNet, the `web` app, a `migrate` job, and a private
-Postgres for the app's own data (cases, users). Releases are tags:
-
-```bash
-git tag v1.0.0 && git push origin v1.0.0     # staging, then production after approval
-```
-
-| Script | Does |
-| --- | --- |
-| `bootstrap.sh <env>` | first-time creation of an environment |
-| `deploy.sh <env> [--tag T] [--plan]` | build+push (unless `--tag`), migrate on the new image, roll the app, health check |
-| `migrate.sh <env>` | run the migrate job and wait for it |
-| `promote.sh <from> <to> <tag>` | copy an image between registries by digest, no rebuild |
-| `rollback.sh <env> <tag>` | redeploy a previous tag |
-| `health.sh <env>` | `/healthz`, `check --deploy`, and a read of api-ocpp from inside the app |
-| `manage.sh <env> <command>` | any `manage.py` command in the running container |
-| `logs.sh <env>` | follow the app's logs |
-
-The app needs network access to the environment's api-ocpp Postgres (and api-gateway's and
-api-gireve's, when configured): allow the app's outbound IPs (`terraform output
-outbound_ip_addresses`) in their firewalls. The secrets each one needs are listed in
-`deploy/terraform/README.md`.
+There's no deployment pipeline for now: CI builds and checks the image (`docker/`), and an
+environment runs it with the variables in `.env.example`'s production block. The image's
+entrypoint takes a role: `web` (gunicorn with uvicorn workers), `migrate` (run it once before
+rolling out a new image, never at container start: two replicas would race) or
+`manage <command>`. The app needs network access to the environment's api-ocpp Postgres (and
+api-gateway's and api-gireve's, when configured).

@@ -2,12 +2,12 @@
 Production (and every deployed environment, staging included): DEBUG off, every value from the
 environment. wsgi.py defaults to this module.
 
-Required: SECRET_KEY, DJANGO_ALLOWED_HOSTS, AUTH_PROXY_SECRET, DATABASE_URL (this app's own
+Required: SECRET_KEY, DJANGO_ALLOWED_HOSTS, DATABASE_URL (this app's own
 Postgres: cases and users), OCPP_DATABASE_URL (a read-only user on api-ocpp's database),
 OCPP_TENANTS (api-ocpp's TENANT_SCHEMAS, comma-separated).
 Optional: GATEWAY_DATABASE_URL and GIREVE_DATABASE_URL (read-only users on api-gateway's and
 api-gireve's databases; a service left out has no tables in the admin),
-DJANGO_CSRF_TRUSTED_ORIGINS, AUTH_PROXY_* header names and groups (settings/base.py), SENTRY_DSN,
+DJANGO_CSRF_TRUSTED_ORIGINS, MICROSOFT_* (sign-in: settings/base.py), SENTRY_DSN,
 SENTRY_TRACES_SAMPLE_RATE, ENVIRONMENT, IMAGE_TAG, LOG_LEVEL, LOG_FORMAT, PGBOUNCER (the services'
 URLs go through PgBouncer in transaction pooling: config/pgbouncer); ANTHROPIC_API_KEY and
 ANTHROPIC_MODEL (Claude's assessment of a case), JIRA_EMAIL, JIRA_API_TOKEN, JIRA_URL,
@@ -20,7 +20,6 @@ from typing import Any
 import dj_database_url
 
 from config.sentry import init_sentry
-from config.settings.base import AUTH_PROXY
 from config.settings.base import PGBOUNCER
 from config.settings.base import SERVICE_DATABASES
 from config.settings.base import *  # noqa: F401,F403
@@ -45,9 +44,6 @@ SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 SILENCED_SYSTEM_CHECKS = ["security.W021"]
 
 OCPP_TENANTS = [tenant.strip() for tenant in os.environ["OCPP_TENANTS"].split(",")]
-
-# Required: without it anyone reaching the container could send the identity headers.
-AUTH_PROXY = {**AUTH_PROXY, "PROXY_SECRET": os.environ["AUTH_PROXY_SECRET"]}
 
 DATABASES: dict[str, dict[str, Any]] = {
     "default": dict(

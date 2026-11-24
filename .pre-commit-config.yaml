@@ -47,7 +47,7 @@ repos:
     rev: v0.11.0.1
     hooks:
       - id: shellcheck
-        args: [-x, -P, deploy/scripts]
+        args: [-x]
   - repo: https://github.com/AleksaC/hadolint-py
     rev: v2.15.1
     hooks:

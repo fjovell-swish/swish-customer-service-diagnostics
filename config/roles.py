@@ -4,9 +4,9 @@ The two ways in, as roles:
     data      query the data: every service table (read-only), per tenant, and the deployments page
     support   customer service: the diagnostics workflow and the case history
 
-A role is a Django group of the same name. Behind the auth proxy the groups follow the user
-service's groups on every request (settings.AUTH_PROXY["ROLE_GROUPS"], config/auth_proxy.py);
-locally they're given in the admin (`seed_fake_data` creates a user per role). Superusers have
+A role is a Django group of the same name. Signing in with Microsoft sets them from the person's
+Entra groups (settings.MICROSOFT_SIGN_IN["ROLE_GROUPS"], config/microsoft.py); otherwise they're
+given in the admin (`seed_fake_data` creates a user per role). Superusers have
 every role.
 """
 
@@ -30,12 +30,12 @@ ROLES = (DATA, SUPPORT)
 
 
 def role_groups() -> dict[str, list[str]]:
-    groups: dict[str, list[str]] = settings.AUTH_PROXY["ROLE_GROUPS"]
+    groups: dict[str, list[str]] = settings.MICROSOFT_SIGN_IN["ROLE_GROUPS"]
     return groups
 
 
 def roles_for_groups(groups: Iterable[str]) -> set[str]:
-    """The roles a user service's groups grant."""
+    """The roles these Entra groups grant."""
     granted = set(groups)
     return {role for role, role_groups_ in role_groups().items() if granted & set(role_groups_)}
 

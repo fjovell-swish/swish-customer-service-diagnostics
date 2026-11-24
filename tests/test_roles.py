@@ -1,4 +1,4 @@
-"""The two ways in: `data` (query the data) and `support` (customer service), from proxy groups."""
+"""The two ways in: `data` (query the data) and `support` (customer service), from Entra groups."""
 
 from collections.abc import Callable
 from http import HTTPStatus
@@ -43,14 +43,14 @@ def case_url() -> str:
 @pytest.mark.parametrize(
     ("groups", "roles"),
     [
-        ({"swish-support"}, {SUPPORT}),
-        ({"swish-data", "eng"}, {DATA}),
-        ({"swish-ops"}, {DATA, SUPPORT}),
+        ({"support"}, {SUPPORT}),
+        ({"data", "eng"}, {DATA}),
+        ({"ops"}, {DATA, SUPPORT}),
         ({"eng"}, set()),
     ],
 )
-def test_roles_for_groups(groups: set[str], roles: set[str]) -> None:
-    assert roles_for_groups(groups) == roles
+def test_roles_for_groups(role_groups: dict[str, str], groups: set[str], roles: set[str]) -> None:
+    assert roles_for_groups({role_groups.get(group, group) for group in groups}) == roles
 
 
 def test_roles_superusers_have_every_role(user: User) -> None:
@@ -174,28 +174,3 @@ def test_access_admin_index_start_here_follows_the_role(
         assert f'href="{reverse(name)}"' in start_here, name
     for name in hidden:
         assert f'href="{reverse(name)}"' not in start_here, name
-
-
-def test_proxy_roles_follow_the_groups_on_every_request(
-    proxy_headers: dict[str, str],
-) -> None:
-    client = Client()
-    assert client.get(reverse("start"), **proxy_headers).status_code == HTTPStatus.OK
-
-    as_data = proxy_headers | {"HTTP_X_FORWARDED_GROUPS": "swish-data"}
-    response = client.get(reverse("start"), **as_data)
-
-    assert response["Location"] == reverse("admin:index")
-    user = User.objects.get(username="ana@swish.example")
-    assert set(user.groups.values_list("name", flat=True)) == {DATA}
-
-
-@pytest.mark.django_db(databases="__all__")
-@pytest.mark.usefixtures("ocpp_tables")
-def test_proxy_both_roles_from_one_group(proxy_headers: dict[str, str]) -> None:
-    client = Client()
-    headers = proxy_headers | {"HTTP_X_FORWARDED_GROUPS": "swish-ops"}
-
-    assert client.get(reverse("start"), **headers).status_code == HTTPStatus.OK
-    changelist = reverse("admin:ocpp_chargepointv16_changelist")
-    assert client.get(changelist, **headers).status_code == HTTPStatus.OK

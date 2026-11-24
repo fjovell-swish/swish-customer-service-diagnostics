@@ -12,7 +12,6 @@ both backends.
 
 import uuid
 from collections.abc import Callable
-from collections.abc import Iterator
 from datetime import UTC
 from datetime import datetime
 from datetime import timedelta
@@ -26,6 +25,8 @@ from django.db import connections
 from django.db.models import Model
 from django.test import Client
 
+from config.roles import DATA
+from config.roles import SUPPORT
 from config.roles import set_roles
 from deployments.github import WorkflowRun
 from deployments.kube import Rollout
@@ -251,7 +252,7 @@ def make_snapshot(
 def admin_client(db: None) -> Client:
     user = User.objects.create_superuser("support", "support@example.com", "password")
     client = Client()
-    # The password backend, as locally: a proxy session without the proxy's headers is signed out.
+    # The password backend, as Microsoft's sign-in uses too (config/microsoft.py).
     client.force_login(user, backend="django.contrib.auth.backends.ModelBackend")
     return client
 
@@ -271,18 +272,17 @@ def make_client(db: None) -> Callable[..., Client]:
 
 
 @pytest.fixture
-def proxy_headers() -> dict[str, str]:
-    """What the auth proxy forwards for a member of the support group."""
-    return {
-        "HTTP_X_FORWARDED_USER": "ana@swish.example",
-        "HTTP_X_FORWARDED_GROUPS": "eng, swish-support",
+def role_groups(settings: Any) -> dict[str, str]:
+    """Entra groups (object IDs) granting the roles: one per role, and one granting both."""
+    groups = {"support": "group-support", "data": "group-data", "ops": "group-ops"}
+    settings.MICROSOFT_SIGN_IN = {
+        **settings.MICROSOFT_SIGN_IN,
+        "ROLE_GROUPS": {
+            DATA: [groups["data"], groups["ops"]],
+            SUPPORT: [groups["support"], groups["ops"]],
+        },
     }
-
-
-@pytest.fixture
-def proxy_secret(settings: Any) -> Iterator[dict[str, str]]:
-    settings.AUTH_PROXY = {**settings.AUTH_PROXY, "PROXY_SECRET": "s3cret"}
-    yield {"HTTP_X_PROXY_SECRET": "s3cret"}
+    return groups
 
 
 # --- Deployments ---

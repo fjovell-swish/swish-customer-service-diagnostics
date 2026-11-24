@@ -29,12 +29,6 @@ STORAGES = {
     "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
 }
 
-# Locally there is no proxy: `manage.py createsuperuser` and the admin login form work too.
-AUTHENTICATION_BACKENDS = [
-    "config.auth_proxy.GroupRemoteUserBackend",
-    "django.contrib.auth.backends.ModelBackend",
-]
-
 OCPP_TENANTS = env_list("OCPP_TENANTS", "public,eosgie")
 
 DATABASES = {

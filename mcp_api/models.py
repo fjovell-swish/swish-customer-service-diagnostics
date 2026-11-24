@@ -1,6 +1,6 @@
 """
 Personal access tokens for the MCP API: MCP clients (Claude Code, Claude Desktop) can't sign in
-through the auth proxy's browser login, so each person creates a token at /tokens/ and the client
+through the app's browser sign-in, so each person creates a token at /tokens/ and the client
 sends it as `Authorization: Bearer <token>`.
 
 Only a hash is stored; the token itself is shown once, when it's created. A token acts as its

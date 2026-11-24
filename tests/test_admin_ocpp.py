@@ -39,7 +39,7 @@ OCPP_MODELS = [model for model in admin.site._registry if model._meta.app_label 
 
 @pytest.fixture
 def staff_client(make_client: Callable[..., Client]) -> Client:
-    """Someone with the data role, as the auth proxy creates them: no model permissions."""
+    """Someone with the data role, as Microsoft's sign-in creates them: no model permissions."""
     return make_client(DATA)
 
 

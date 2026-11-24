@@ -1,0 +1,24 @@
+{% extends "admin/login.html" %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+  .microsoft-sign-in { text-align: center; margin: 0 0 1.5em; }
+  .microsoft-sign-in a.button { display: inline-block; padding: 10px 20px; font-size: 1rem; }
+  .password-sign-in summary { cursor: pointer; margin-bottom: 1em; color: var(--body-quiet-color); }
+</style>
+{% endblock extrastyle %}
+
+{% block content %}
+{% if microsoft_sign_in %}
+<div class="microsoft-sign-in">
+  <a class="button default" href="{% url 'microsoft-sign-in' %}?next={{ next|urlencode }}">Sign in with Microsoft</a>
+</div>
+<details class="password-sign-in"{% if form.errors %} open{% endif %}>
+  <summary>Sign in with a password (administrators)</summary>
+  {{ block.super }}
+</details>
+{% else %}
+{{ block.super }}
+{% endif %}
+{% endblock content %}

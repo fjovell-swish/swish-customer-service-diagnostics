@@ -49,29 +49,28 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
-    "config.auth_proxy.ProxyHeaderMiddleware",
     "config.tenancy.TenantMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
-# Staff sign in to the user service at the auth proxy in front of this app; Django trusts the
-# headers it forwards, only with the proxy's secret, and only for groups that grant a role
-# (config/auth_proxy.py, config/roles.py). local.py adds the password login for development.
-AUTHENTICATION_BACKENDS = ["config.auth_proxy.GroupRemoteUserBackend"]
-AUTH_PROXY: dict[str, Any] = {
-    "USER_HEADER": os.environ.get("AUTH_PROXY_USER_HEADER", "X-Forwarded-User"),
-    "GROUPS_HEADER": os.environ.get("AUTH_PROXY_GROUPS_HEADER", "X-Forwarded-Groups"),
-    # The user service's groups that grant each role (config/roles.py); anyone else is refused.
+# Staff sign in with Microsoft (Entra ID), and only people in a group that grants a role get in
+# (config/microsoft.py, config/roles.py). The password login stays, for superusers made with
+# `manage.py createsuperuser` (Microsoft's users have no password here).
+MICROSOFT_SIGN_IN: dict[str, Any] = {
+    "TENANT_ID": os.environ.get("MICROSOFT_TENANT_ID", ""),
+    "CLIENT_ID": os.environ.get("MICROSOFT_CLIENT_ID", ""),
+    "CLIENT_SECRET": os.environ.get("MICROSOFT_CLIENT_SECRET", ""),
+    # The Entra groups (object IDs) that grant each role (config/roles.py); anyone else is refused.
     "ROLE_GROUPS": {
-        "data": env_list("AUTH_PROXY_DATA_GROUPS", "swish-data,swish-ops"),
-        "support": env_list("AUTH_PROXY_SUPPORT_GROUPS", "swish-support,swish-ops"),
+        "data": env_list("MICROSOFT_DATA_GROUPS"),
+        "support": env_list("MICROSOFT_SUPPORT_GROUPS"),
     },
-    "PROXY_SECRET_HEADER": os.environ.get("AUTH_PROXY_SECRET_HEADER", "X-Proxy-Secret"),
-    "PROXY_SECRET": "",
 }
 # Sessions live in the signed cookie: every replica serves every request without a shared database.
 SESSION_ENGINE = "django.contrib.sessions.backends.signed_cookies"
+# Roles are set at each sign-in: a change in Entra's groups applies within a working day.
+SESSION_COOKIE_AGE = 12 * 60 * 60
 
 ROOT_URLCONF = "config.urls"
 WSGI_APPLICATION = "config.wsgi.application"

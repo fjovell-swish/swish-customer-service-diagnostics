@@ -27,7 +27,6 @@ def production_env() -> dict[str, str]:
         "SECRET_KEY": "s",
         "DJANGO_ALLOWED_HOSTS": "diagnostics.example",
         "DJANGO_CSRF_TRUSTED_ORIGINS": "https://diagnostics.example,",
-        "AUTH_PROXY_SECRET": "proxy-secret",
         "DATABASE_URL": "postgres://app:pw@db.internal:5432/diagnostics",
         "OCPP_DATABASE_URL": "postgres://readonly:pw@ocpp.internal:5432/ocpp",
         "OCPP_TENANTS": "public, eosgie",
@@ -66,8 +65,6 @@ def test_production_settings_come_from_the_environment(
     assert prod.DEBUG is False and prod.SECRET_KEY == "s"
     assert prod.ALLOWED_HOSTS == ["diagnostics.example"]
     assert prod.CSRF_TRUSTED_ORIGINS == ["https://diagnostics.example"]  # empty items dropped
-    assert prod.AUTH_PROXY["PROXY_SECRET"] == "proxy-secret"
-    assert prod.AUTHENTICATION_BACKENDS == ["config.auth_proxy.GroupRemoteUserBackend"]
     assert prod.SESSION_COOKIE_SECURE and prod.CSRF_COOKIE_SECURE and prod.SECURE_SSL_REDIRECT
     assert prod.DATABASES["default"]["HOST"] == "db.internal"
 
@@ -110,7 +107,6 @@ def test_production_settings_gateway_and_gireve_are_optional_and_read_only(
     [
         "SECRET_KEY",
         "DJANGO_ALLOWED_HOSTS",
-        "AUTH_PROXY_SECRET",
         "DATABASE_URL",
         "OCPP_DATABASE_URL",
         "OCPP_TENANTS",

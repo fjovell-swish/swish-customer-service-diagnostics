@@ -1,8 +1,8 @@
 """
 The MCP endpoint's authentication: `Authorization: Bearer <personal token>` (mcp_api/models.py).
 
-/mcp doesn't go through Django's middleware (config/asgi.py), and in deployed environments it
-bypasses the auth proxy: this is its only sign-in. The user is put in the ASGI scope, where the
+/mcp doesn't go through Django's middleware or its sign-in (config/asgi.py): this is its only
+sign-in. The user is put in the ASGI scope, where the
 tools read it (mcp_api/server.py).
 """
 

@@ -1,9 +1,8 @@
 # Local stack.
 #   docker compose up --build web     # the production image on :8000, migrated first, on this Postgres
 # (Tests don't need it: they run on SQLite locally; CI runs them on Postgres too.)
-# The web service has no auth proxy in front of it and no proxy secret, so it trusts identity headers
-# as they come: send X-Forwarded-User and X-Forwarded-Groups: swish-support (a header-editing
-# browser extension or curl -H ...). Never run it like this anywhere else.
+# Sign in with Microsoft when .env sets MICROSOFT_* (README: Signing in), or with a password:
+#   docker compose run --rm web manage createsuperuser
 name: swishdiag
 
 services:
@@ -30,7 +29,11 @@ services:
       SECRET_KEY: compose-only-not-a-secret
       DJANGO_ALLOWED_HOSTS: "*"
       DJANGO_CSRF_TRUSTED_ORIGINS: "http://localhost:8000"
-      AUTH_PROXY_SECRET: ""
+      MICROSOFT_TENANT_ID: ${MICROSOFT_TENANT_ID:-}
+      MICROSOFT_CLIENT_ID: ${MICROSOFT_CLIENT_ID:-}
+      MICROSOFT_CLIENT_SECRET: ${MICROSOFT_CLIENT_SECRET:-}
+      MICROSOFT_DATA_GROUPS: ${MICROSOFT_DATA_GROUPS:-}
+      MICROSOFT_SUPPORT_GROUPS: ${MICROSOFT_SUPPORT_GROUPS:-}
       DATABASE_URL: postgres://swish:swish@postgres:5432/swish
       # Point at a real api-ocpp (read-only user) to look at real chargers.
       OCPP_DATABASE_URL: ${OCPP_DATABASE_URL:-postgres://swish:swish@postgres:5432/swish}

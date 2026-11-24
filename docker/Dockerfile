@@ -53,7 +53,7 @@ COPY templates ./templates
 # Still root: the static files and the bytecode are written now, so nothing in /app has to be
 # writable at runtime. collectstatic only needs the production settings to import: the values are
 # placeholders, no secret is baked in.
-RUN SECRET_KEY=build DJANGO_ALLOWED_HOSTS=build AUTH_PROXY_SECRET=build \
+RUN SECRET_KEY=build DJANGO_ALLOWED_HOSTS=build \
     DATABASE_URL=postgres://build/build OCPP_DATABASE_URL=postgres://build/build \
     OCPP_TENANTS=public \
     python manage.py collectstatic --noinput --settings config.settings.production \

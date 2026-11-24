@@ -6,11 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Commit and push straight to `main`; there are no feature branches or pull requests in this repo.
 Pushing to `main` deploys nothing: it runs the CI workflows (tests, pre-commit, type check, image
-build, Terraform) and, when `pyproject.toml` changed, recompiles the lockfiles and pushes a commit
-on its own (pull before pushing again).
-
-**Releasing is separate:** pushing a `vX.Y.Z` tag deploys to staging, then to production after an
-approval (`.github/workflows/deploy.yaml`). Never push a tag unless asked to release.
+build) and, when `pyproject.toml` changed, recompiles the lockfiles and pushes a commit on its own
+(pull before pushing again). There's no deployment pipeline for now; never push tags unless asked.
 
 Before every push, run locally: pre-commit, mypy and the tests, which run on **SQLite** (see
 Commands). CI also runs them on Postgres, where
@@ -91,7 +88,8 @@ and this repo lives under a personal account, so GitHub refuses to run them from
 - `config/asgi.py`: the app on ASGI, as served (gunicorn + uvicorn workers): `/mcp` and lifespan
   go to the MCP app, everything else to Django. `build()` makes a new one each call: the MCP
   session manager runs once per app. `runserver` (WSGI) doesn't serve `/mcp`.
-- `config/auth_proxy.py`: sign-in in deployed environments (below). `config/routers.py`: keeps
+- `config/microsoft.py`: sign-in with Microsoft (Entra ID, OpenID Connect), roles from the ID
+  token's groups (below); `templates/admin/login.html` puts its button first. `config/routers.py`: keeps
   the services' models off `default` and never migrates them. `config/tenancy.py`: the admin's
   tenant switcher.
 - `docker/`: the image. `Dockerfile` (two stages: the hashed lockfile into a virtualenv, then the
@@ -99,9 +97,6 @@ and this repo lives under a personal account, so GitHub refuses to run them from
   `entrypoint.sh` runs the role it's given: `web`, `migrate` or `manage <command>`;
   `healthcheck.py` is the image's HEALTHCHECK. `.dockerignore` is an allowlist: a new top-level
   directory the app needs must be added there and to a `COPY` line.
-- `deploy/`: Terraform for Azure Container Apps (VNet, app, migrate job, private Postgres), and
-  the scripts (`build-push.sh`, `deploy.sh`, `migrate.sh`, `promote.sh`, `rollback.sh`,
-  `health.sh`, `manage.sh`, ...).
 
 ## Things that are easy to get wrong
 
@@ -118,21 +113,22 @@ and this repo lives under a personal account, so GitHub refuses to run them from
 - Field values (statuses, error codes, rejection kinds, stop reasons) are the strings api-ocpp
   stores. Check its enums (`swish-charge/api-ocpp`, `src/models/enums/`) before matching on a new one.
 - Two roles (`config/roles.py`): `data` (service tables, deployments) and `support` (diagnostics,
-  cases); check them with `has_role()` / `role_required()`, never with `is_staff`. Behind the auth
-  proxy (`X-Forwarded-User`, `X-Forwarded-Groups`, `X-Proxy-Secret`) the roles follow the groups
-  on every request (`AUTH_PROXY_DATA_GROUPS`, `AUTH_PROXY_SUPPORT_GROUPS`); without the secret the
-  headers are ignored. Locally (and in tests) the Django password login works too: tests
-  sign in with `force_login(user, backend="django.contrib.auth.backends.ModelBackend")`, or the
-  proxy middleware signs them out.
+  cases); check them with `has_role()` / `role_required()`, never with `is_staff`. Signing in with
+  Microsoft sets them from the Entra groups in the ID token (`MICROSOFT_DATA_GROUPS`,
+  `MICROSOFT_SUPPORT_GROUPS`: object IDs) at every sign-in; nobody without a role gets in. The ID
+  token isn't signature-checked (it comes from the token endpoint), so pyjwt needs `verify_exp`,
+  `verify_iss` and `verify_aud` turned on explicitly: keep them. Tests sign in with
+  `force_login(user, backend="django.contrib.auth.backends.ModelBackend")`, the backend Microsoft's
+  sign-in uses too, and set groups with the `role_groups` fixture.
 - Tests that touch api-ocpp need `pytest.mark.django_db(databases="__all__")` and the `ocpp_tables`
   fixture (or `save`, which uses it): pytest-django only sets up the tenants' test databases when
   such a test is collected. api-gateway's and api-gireve's: the same with `service_tables`. Tests
   that need Postgres are marked `postgres` and skip on SQLite.
-- Migrations run in the migrate job before each rollout (`deploy.sh`), never at container start:
-  keep it that way, two replicas starting together would race.
+- Migrations run with the image's `migrate` role before a rollout, never at container start: keep
+  it that way, two replicas starting together would race.
 - Answers are stored by question key in `Case.answers`; renaming a key or a choice value orphans
   old cases' answers. Add new keys/values instead, and keep `QUESTION_ORDER` in step with `QUESTIONS`.
-- `/mcp` skips Django's middleware and, deployed, the auth proxy: its tools must check roles
+- `/mcp` skips Django's middleware and sign-in: its tools must check roles
   themselves (`caller(ctx, ...)`) and must never write. A new tool returns only what support may
   see, through the same masking as `case_context`.
 - Production redirects to HTTPS except `/healthz` (the platform probes it over HTTP); keep the

@@ -21,6 +21,8 @@ dependencies = [
     "docutils>=0.21",
     # manage.py reads the repo's .env (local runs).
     "python-dotenv>=1.1",
+    # Sign-in with Microsoft: reading the ID token (config/microsoft.py).
+    "pyjwt>=2.10",
     # The MCP API (mcp_api/), and the ASGI server for the app and /mcp (config/asgi.py).
     "mcp>=2.3",
     "uvicorn-worker>=0.4",

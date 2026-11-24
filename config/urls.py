@@ -4,6 +4,7 @@ from django.urls import URLPattern
 from django.urls import include
 from django.urls import path
 
+from config import microsoft
 from config.roles import DATA
 from config.roles import any_role_required
 from config.roles import role_required
@@ -35,6 +36,8 @@ urlpatterns = [
     path("guide/", admin.site.admin_view(guide), name="guide"),
     path("tokens/", admin.site.admin_view(any_role_required(tokens)), name="tokens"),
     path("admin/tenant/", switch_tenant, name="switch-tenant"),
+    path("accounts/microsoft/", microsoft.sign_in, name="microsoft-sign-in"),
+    path("accounts/microsoft/callback/", microsoft.callback, name="microsoft-callback"),
     path(
         "admin/deployments/",
         admin.site.admin_view(role_required(DATA)(deployment_status)),
