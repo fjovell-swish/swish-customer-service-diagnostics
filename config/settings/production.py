@@ -8,7 +8,8 @@ OCPP_TENANTS (api-ocpp's TENANT_SCHEMAS, comma-separated).
 Optional: GATEWAY_DATABASE_URL and GIREVE_DATABASE_URL (read-only users on api-gateway's and
 api-gireve's databases; a service left out has no tables in the admin),
 DJANGO_CSRF_TRUSTED_ORIGINS, AUTH_PROXY_* header names and groups (settings/base.py), SENTRY_DSN,
-SENTRY_TRACES_SAMPLE_RATE, ENVIRONMENT, IMAGE_TAG, LOG_LEVEL, LOG_FORMAT; ANTHROPIC_API_KEY and
+SENTRY_TRACES_SAMPLE_RATE, ENVIRONMENT, IMAGE_TAG, LOG_LEVEL, LOG_FORMAT, PGBOUNCER (the services'
+URLs go through PgBouncer in transaction pooling: config/pgbouncer); ANTHROPIC_API_KEY and
 ANTHROPIC_MODEL (Claude's assessment of a case), JIRA_EMAIL, JIRA_API_TOKEN, JIRA_URL,
 JIRA_PROJECT, JIRA_ISSUE_TYPE and JIRA_LABELS (escalating a case to Jira); see settings/base.py.
 """
@@ -20,6 +21,7 @@ import dj_database_url
 
 from config.sentry import init_sentry
 from config.settings.base import AUTH_PROXY
+from config.settings.base import PGBOUNCER
 from config.settings.base import SERVICE_DATABASES
 from config.settings.base import *  # noqa: F401,F403
 from config.settings.base import ocpp_databases
@@ -53,9 +55,13 @@ DATABASES: dict[str, dict[str, Any]] = {
     ),
     # Read-only twice over: the database user should only have SELECT, and every transaction is
     # read-only, so nothing in this app can write to api-ocpp by accident.
-    **ocpp_databases(os.environ["OCPP_DATABASE_URL"], OCPP_TENANTS, read_only=True),
+    **ocpp_databases(
+        os.environ["OCPP_DATABASE_URL"], OCPP_TENANTS, read_only=True, pgbouncer=PGBOUNCER
+    ),
     **{
-        service: service_database(os.environ[f"{service.upper()}_DATABASE_URL"], read_only=True)
+        service: service_database(
+            os.environ[f"{service.upper()}_DATABASE_URL"], read_only=True, pgbouncer=PGBOUNCER
+        )
         for service in SERVICE_DATABASES
         if os.environ.get(f"{service.upper()}_DATABASE_URL")
     },

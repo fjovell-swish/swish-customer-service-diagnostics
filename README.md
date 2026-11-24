@@ -173,6 +173,14 @@ transactions
 (`default_transaction_read_only=on`): a write fails with "cannot execute UPDATE in a read-only
 transaction". Use a database user with `SELECT` only anyway.
 
+**Through PgBouncer** (Azure's, port 6432, transaction pooling), set `PGBOUNCER=true`
+(Terraform: `pgbouncer = true`). Consecutive statements can then run on different server
+connections, so the tenant's `search_path` and the read-only mode set when connecting would only
+follow if PgBouncer tracks them. With the flag, the services' aliases use `config/pgbouncer`
+instead: every statement runs in a short transaction that first does `SET LOCAL search_path` and
+`SET LOCAL transaction_read_only`, and server-side cursors are off. The app's own database isn't
+affected. Without the flag, connect directly (port 5432).
+
 ## Settings
 
 `config/settings/`: `base.py` (shared), `local.py` (default for `manage.py` and pytest),

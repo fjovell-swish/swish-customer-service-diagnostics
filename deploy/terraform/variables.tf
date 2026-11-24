@@ -57,6 +57,12 @@ variable "github_token" {
   sensitive   = true
 }
 
+variable "pgbouncer" {
+  description = "The services' database URLs go through PgBouncer in transaction pooling (Azure's, port 6432): tenants and read-only mode are then pinned per transaction (config/pgbouncer)"
+  type        = bool
+  default     = false
+}
+
 variable "anthropic_api_key" {
   description = "Claude API key for the assessment of a case; empty: no \"Ask Claude\" button"
   type        = string

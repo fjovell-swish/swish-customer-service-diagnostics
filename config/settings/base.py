@@ -92,6 +92,22 @@ TEMPLATES = [
     },
 ]
 
+# --- The services' databases through PgBouncer --------------------------------------------------
+# PGBOUNCER=true when the service URLs point at PgBouncer in transaction pooling (Azure's, port
+# 6432): their aliases then use config/pgbouncer, which pins each tenant's schema and the
+# read-only mode per transaction instead of once per connection. The app's own database
+# (`default`) isn't affected.
+PGBOUNCER = os.environ.get("PGBOUNCER", "").lower() in {"1", "true", "yes"}
+PGBOUNCER_ENGINE = "config.pgbouncer"
+
+
+def through_pgbouncer(config: dict[str, Any], search_path: str | None, read_only: bool) -> None:
+    config["ENGINE"] = PGBOUNCER_ENGINE
+    # Server-side cursors need their transaction's connection for as long as they're read.
+    config["DISABLE_SERVER_SIDE_CURSORS"] = True
+    config["PIN"] = {"search_path": search_path, "read_only": read_only}
+
+
 # --- api-ocpp -------------------------------------------------------------------------------
 # api-ocpp keeps one Postgres schema per tenant, so every tenant gets its own alias
 # ("ocpp_<tenant>"). A charger lookup searches all of them, since support rarely knows the tenant.
@@ -101,7 +117,11 @@ DATABASE_ROUTERS = ["config.routers.ServiceRouter"]
 
 
 def ocpp_databases(
-    url: str, tenants: list[str], read_only: bool, test_names: bool = False
+    url: str,
+    tenants: list[str],
+    read_only: bool,
+    test_names: bool = False,
+    pgbouncer: bool = False,
 ) -> dict[str, dict[str, Any]]:
     """One alias per tenant on api-ocpp's database, pinned to that tenant's schema."""
     databases = {}
@@ -109,6 +129,10 @@ def ocpp_databases(
         config: dict[str, Any] = dict(
             dj_database_url.parse(url, conn_max_age=60, conn_health_checks=True)
         )
+        if pgbouncer:
+            through_pgbouncer(config, tenant, read_only)
+            databases[f"ocpp_{tenant}"] = config
+            continue
         # In a fresh test database the tenant's schema doesn't exist yet, so Django's own
         # bookkeeping (django_migrations) goes to `public`; api-ocpp's tables go to the tenant.
         search_path = f"{tenant},public" if test_names else tenant
@@ -129,11 +153,15 @@ def ocpp_databases(
 SERVICE_DATABASES = ("gateway", "gireve")
 
 
-def service_database(url: str, read_only: bool, test_name: str = "") -> dict[str, Any]:
+def service_database(
+    url: str, read_only: bool, test_name: str = "", pgbouncer: bool = False
+) -> dict[str, Any]:
     config: dict[str, Any] = dict(
         dj_database_url.parse(url, conn_max_age=60, conn_health_checks=True)
     )
-    if read_only:
+    if pgbouncer:
+        through_pgbouncer(config, None, read_only)
+    elif read_only:
         config["OPTIONS"] = {"options": "-c default_transaction_read_only=on"}
     if test_name:
         config["TEST"] = {"NAME": test_name}

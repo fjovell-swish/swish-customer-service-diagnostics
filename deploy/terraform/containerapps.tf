@@ -64,6 +64,7 @@ locals {
     IMAGE_TAG                   = var.image_tag
     LOG_FORMAT                  = "json"
     OCPP_TENANTS                = join(",", var.ocpp_tenants)
+    PGBOUNCER                   = tostring(var.pgbouncer)
     AUTH_PROXY_DATA_GROUPS      = join(",", var.data_groups)
     AUTH_PROXY_SUPPORT_GROUPS   = join(",", var.support_groups)
     DJANGO_ALLOWED_HOSTS        = join(",", compact(["ca-${local.name}-web.${azurerm_container_app_environment.env.default_domain}", var.custom_domain]))

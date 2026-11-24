@@ -9,6 +9,7 @@ Without it each tenant is an empty local SQLite file; tests create api-ocpp's ta
 import os
 
 from config.settings.base import BASE_DIR
+from config.settings.base import PGBOUNCER
 from config.settings.base import SERVICE_DATABASES
 from config.settings.base import *  # noqa: F401,F403
 from config.settings.base import env_list
@@ -45,7 +46,9 @@ DATABASES = {
     },
 }
 if os.environ.get("OCPP_DATABASE_URL"):
-    DATABASES |= ocpp_databases(os.environ["OCPP_DATABASE_URL"], OCPP_TENANTS, read_only=True)
+    DATABASES |= ocpp_databases(
+        os.environ["OCPP_DATABASE_URL"], OCPP_TENANTS, read_only=True, pgbouncer=PGBOUNCER
+    )
 else:
     for tenant in OCPP_TENANTS:
         DATABASES[f"ocpp_{tenant}"] = {
@@ -57,7 +60,7 @@ else:
 for service in SERVICE_DATABASES:
     url = os.environ.get(f"{service.upper()}_DATABASE_URL")
     if url:
-        DATABASES[service] = service_database(url, read_only=True)
+        DATABASES[service] = service_database(url, read_only=True, pgbouncer=PGBOUNCER)
     else:
         DATABASES[service] = {
             "ENGINE": "django.db.backends.sqlite3",
