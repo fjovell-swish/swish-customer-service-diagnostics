@@ -17,6 +17,8 @@ dependencies = [
     "kubernetes>=37.0.2",
     # Claude's assessment of a case (diagnostics/assistant.py).
     "anthropic>=2.13",
+    # admindocs renders the docstrings (reStructuredText) at /admin/doc/.
+    "docutils>=0.21",
 ]
 
 [project.optional-dependencies]

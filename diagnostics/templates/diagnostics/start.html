@@ -8,7 +8,7 @@
 <form class="search" method="get" action="{% url 'start' %}">
   <input type="text" name="q" value="{{ query }}" placeholder="Charger identity, name or serial number" autofocus>
   <input type="submit" value="Find the charger">
-  <p class="muted">A customer says "the charger doesn't work": find the charger, start a case and answer the questions. You get a likely cause, a reply for the customer and a summary for the ticket.</p>
+  <p class="muted">A customer says "the charger doesn't work": find the charger, start a case and answer the questions. You get a likely cause, a reply for the customer and a summary for the ticket. New to it? Read <a href="{% url 'guide' %}">how to diagnose a charger</a>.</p>
 </form>
 
 {% if query %}

@@ -57,8 +57,13 @@ and this repo lives under a personal account, so GitHub refuses to run them from
 - `diagnostics/models.py`: `Case` (the charger, the answers as JSON, the diagnosis as written).
   `diagnostics/admin.py`: the case history. `diagnostics/forms.py`: start and answer forms.
 - `diagnostics/views.py` + `templates/diagnostics/`: `/` (find a charger, start a case, latest
-  cases) and `/cases/<id>/` (next question or the diagnosis; Back, start over, diagnose again,
-  close), on the admin's look.
+  cases), `/cases/<id>/` (next question or the diagnosis; Back, start over, diagnose again,
+  close) and `/guide/` (how to diagnose a charger, for support reps: keep it in step with the
+  workflow's pages), on the admin's look.
+- `/admin/doc/` (admindocs, the header's "Documentation" link): the views' and models'
+  docstrings, rendered as reStructuredText, for anyone with a role (`config/urls.py`). A model's
+  page also needs Django's view permission on it, which the roles don't give: only superusers
+  see those. Keep the `Case` model's and the views' docstrings accurate.
 - `services/<service>/models.py` (`ocpp`, `gateway`, `gireve`): the services' tables,
   **generated** (see below); `services/<service>/admin.py` registers them read-only through
   `services/admin_registration.py`.

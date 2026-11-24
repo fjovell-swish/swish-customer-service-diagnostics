@@ -10,31 +10,48 @@ from diagnostics.workflow import Diagnosis
 
 
 class Case(models.Model):
-    """One "the charger doesn't work" case: the charger, the rep's answers, the diagnosis."""
+    """One "the charger doesn't work" case: the charger, the rep's answers, the diagnosis.
+
+    Opened from the diagnostics page for a charger found in api-ocpp (``identity`` in
+    ``tenant``). The rep's answers are kept by question key; once the last relevant question is
+    answered, the diagnosis is written into the case as it was then (the charger's live state
+    moves on). Claude's assessment and the Jira escalation, when asked for, are kept too.
+
+    Status: ``open`` (questions to answer), ``diagnosed``, ``closed``. Back, Start the questions
+    over and Diagnose again reopen it.
+    """
 
     class Status(models.TextChoices):
         OPEN = "open", "Open"
         DIAGNOSED = "diagnosed", "Diagnosed"
         CLOSED = "closed", "Closed"
 
-    identity = models.CharField("charger identity", max_length=255)
-    tenant = models.CharField(max_length=63)
+    identity = models.CharField(
+        "charger identity", max_length=255, help_text="The charger's OCPP identity in api-ocpp."
+    )
+    tenant = models.CharField(max_length=63, help_text="The api-ocpp tenant (schema) it's in.")
     ticket = models.CharField(
         max_length=255, blank=True, help_text="The support ticket's number or link."
     )
     status = models.CharField(max_length=16, choices=Status, default=Status.OPEN)
-    answers = models.JSONField(default=dict, blank=True)
+    answers = models.JSONField(
+        default=dict, blank=True, help_text="The rep's answers, by question key."
+    )
     # The diagnosis as written when the last question was answered, kept as it was: the charger's
     # live state moves on, the case records what support saw and told the customer.
     likely_cause = models.CharField(max_length=255, blank=True)
-    confidence = models.CharField(max_length=16, blank=True)
-    summary = models.TextField(blank=True)
-    customer_reply = models.TextField(blank=True)
+    confidence = models.CharField(max_length=16, blank=True, help_text="low, medium or high.")
+    summary = models.TextField(blank=True, help_text="The summary for the support ticket.")
+    customer_reply = models.TextField(blank=True, help_text="The reply for the customer.")
     diagnosed_at = models.DateTimeField(null=True, blank=True)
     # Claude's assessment (diagnostics/assistant.py), as returned, and the Jira escalation.
-    assessment = models.JSONField(default=dict, blank=True)
+    assessment = models.JSONField(
+        default=dict, blank=True, help_text="Claude's assessment, as returned (empty until asked)."
+    )
     assessed_at = models.DateTimeField(null=True, blank=True)
-    assessment_model = models.CharField(max_length=64, blank=True)
+    assessment_model = models.CharField(
+        max_length=64, blank=True, help_text="The Claude model that wrote the assessment."
+    )
     jira_issue = models.CharField(
         max_length=255, blank=True, help_text="The Jira issue the case was escalated to."
     )

@@ -81,3 +81,18 @@ def role_required(
         return wrapped
 
     return decorator
+
+
+def any_role_required(view: Callable[..., HttpResponse]) -> Callable[..., HttpResponse]:
+    """For views behind the admin's staff login: 403 for a signed-in user with neither role.
+
+    Anonymous users pass through, so the view's own login redirect still applies.
+    """
+
+    @wraps(view)
+    def wrapped(request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponse:
+        if request.user.is_authenticated and not user_roles(request.user):
+            raise PermissionDenied("Needs the data or the support role.")
+        return view(request, *args, **kwargs)
+
+    return wrapped

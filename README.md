@@ -17,6 +17,10 @@ It also replaces the former swish-admin: people with the `data` role get every t
 (per tenant), api-gateway and api-gireve in the admin, read-only, and the deployments page (what
 each service runs in staging and production, from GitHub Actions and Kubernetes).
 
+For support reps, the app has a short guide, **How to diagnose a charger** (`/guide/`, linked
+from the diagnostics page). The header's **Documentation** link (`/admin/doc/`, Django's
+admindocs) describes the views and, for superusers, the models, from their docstrings.
+
 ## The workflow
 
 Questions (`diagnostics/workflow.py`, `QUESTIONS`), each asked only when it can change the answer:

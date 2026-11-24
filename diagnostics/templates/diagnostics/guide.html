@@ -1,0 +1,37 @@
+{% extends "diagnostics/base.html" %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs"><a href="{% url 'start' %}">Charger diagnostics</a> &rsaquo; How to diagnose a charger</div>
+{% endblock breadcrumbs %}
+
+{% block content %}
+<div class="module guide" style="padding: 12px 16px; max-width: 52em">
+  <p>A customer says <em>"the charger doesn't work"</em>. This page takes you from their message to an answer for them, and to a ticket for the tech team when you can't solve it.</p>
+
+  <h3>1. Find the charger</h3>
+  <p>On <a href="{% url 'start' %}">Charger diagnostics</a>, search by the charger's identity, its name or its serial number. Every tenant is searched, so you don't need to know which one the charger is in. An exact identity wins over partial matches.</p>
+
+  <h3>2. Start a case</h3>
+  <p>Next to the charger, type the support ticket's number (optional) and click <strong>Start</strong>. The case is saved, with you as its author, so anyone can reopen it from <em>Latest cases</em>.</p>
+
+  <h3>3. Answer the questions</h3>
+  <p>You're only asked what can change the answer: which connector only if the charger has several, whether it has power only if it's offline or "nothing happens", the badge number only if they used a badge, and so on. If it happened <strong>before today</strong>, the app looks back 7 days instead of 24 hours. The charger's live state is shown on the right, with what looks wrong.</p>
+
+  <h3>4. Read the diagnosis</h3>
+  <p>Once the last question is answered you get the <strong>likely cause</strong> and how confident the app is (low, medium or high), a <strong>reply for the customer</strong> and a <strong>summary for the ticket</strong>, each with a Copy button. The case keeps the diagnosis as it was written, even when the charger changes later.</p>
+  <ul>
+    <li><strong>Back</strong> undoes your last answer; <strong>Start the questions over</strong> clears them all.</li>
+    <li><strong>Diagnose again with the latest data</strong> rewrites the diagnosis from the charger's current state, e.g. after a remote reset.</li>
+    <li><strong>Close the case</strong> when you're done. <em>Edit in the admin</em> lets you fix the ticket number or the status.</li>
+  </ul>
+
+  <h3>5. Ask Claude for a second opinion</h3>
+  <p>When it's available, <strong>Ask Claude for an assessment</strong> sends the whole case to Claude: what the platform knows about the charger, the checks, your answers and the diagnosis. Drivers' emails and the charger's network identifiers are left out, and badge numbers are masked. You get what's going on, the steps support can take, a reply for the customer, and whether the tech team needs to step in. <strong>Check it before acting on it</strong>: it says whether it agrees with the diagnosis above. Going Back or starting the questions over drops it, since it was about the old answers.</p>
+
+  <h3>6. Escalate when support can't solve it</h3>
+  <p><strong>Create the Jira ticket</strong> files Claude's draft for the tech team, with a link to the case and the summary. It's the main button when Claude says the case needs the tech team, and it can only be done once per case: the case then shows the issue. Without Claude, copy the summary for the ticket into your usual ticket instead.</p>
+
+  <h3>Trying it out</h3>
+  <p>Locally, <code>python manage.py seed_fake_data</code> creates fake chargers, one per problem the app diagnoses: search <code>SEED</code>. The README lists what each one shows.</p>
+</div>
+{% endblock content %}

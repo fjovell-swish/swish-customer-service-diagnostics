@@ -3,6 +3,7 @@ The workflow's pages, behind the admin's login and look.
 
     /                  find the charger, start a case (and the latest cases)
     /cases/<id>/       the next question, or the diagnosis once nothing is missing
+    /guide/            how to diagnose a charger, for support reps
 
 The charger's state is read live on every page; the diagnosis is written into the case when the
 last question is answered. Once diagnosed, the rep can ask Claude for an assessment of the whole
@@ -54,6 +55,14 @@ RECENT_CASES = 20
 
 
 def start(request: HttpRequest) -> HttpResponse:
+    """Find a charger and start a case; the latest cases.
+
+    The site's home page. Searches every api-ocpp tenant for ``q`` (an exact identity, or a
+    fragment of an identity, name or serial number). POST starts a :model:`diagnostics.Case`
+    for the charger and opens it. People with only the ``data`` role land on the admin's tables.
+
+    **Template:** :template:`diagnostics/start.html`
+    """
     # The site's home page: people who only query the data land on the admin's tables.
     if not has_role(request.user, SUPPORT):
         if has_role(request.user, DATA):
@@ -81,6 +90,15 @@ def start(request: HttpRequest) -> HttpResponse:
 
 @role_required(SUPPORT)
 def case_detail(request: HttpRequest, pk: int) -> HttpResponse:
+    """One :model:`diagnostics.Case`: the next question, or the diagnosis.
+
+    The charger's state is read live from api-ocpp on every page. While questions are missing,
+    it asks the next relevant one; once none is, it writes the diagnosis into the case. POST
+    ``action``: ``answer``, ``back``, ``restart``, ``rediagnose``, ``close``, ``assess`` (Claude's
+    assessment) or ``escalate`` (the Jira issue).
+
+    **Template:** :template:`diagnostics/case.html`
+    """
     case = get_object_or_404(Case, pk=pk)
     charge_point = (
         ChargePointV16.objects.using(ocpp_alias(case.tenant))
@@ -131,6 +149,16 @@ def case_detail(request: HttpRequest, pk: int) -> HttpResponse:
         "can_escalate": jira.enabled(),
     }
     return TemplateResponse(request, "diagnostics/case.html", context)
+
+
+@role_required(SUPPORT)
+def guide(request: HttpRequest) -> HttpResponse:
+    """How to diagnose a charger: the getting-started guide for support reps.
+
+    **Template:** :template:`diagnostics/guide.html`
+    """
+    context = admin.site.each_context(request) | {"title": "How to diagnose a charger"}
+    return TemplateResponse(request, "diagnostics/guide.html", context)
 
 
 def update(request: HttpRequest, case: Case, action: str | None) -> HttpResponse:

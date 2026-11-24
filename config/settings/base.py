@@ -27,6 +27,8 @@ def env_list(name: str, default: str = "") -> list[str]:
 INSTALLED_APPS = [
     # The admin is only used for its look and its login page (locally); no model is registered.
     "django.contrib.admin",
+    # The models' and views' docstrings at /admin/doc/ (the header's "Documentation" link).
+    "django.contrib.admindocs",
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
